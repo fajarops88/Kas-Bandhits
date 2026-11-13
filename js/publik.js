@@ -76,6 +76,23 @@
         '<div class="row ringkas"><small class="muted">' + m.items.length + ' cicilan · <b class="num">' + KB.rp(m.total) + '</b></small><span class="sp"></span>' + status + '</div></div>' +
         '<div class="mg-isi" id="mgIsi' + i + '"' + (buka ? '' : ' hidden') + '>' + items + '</div></div>';
     }).join('');
+    // Awal bulan depan: cicilan yang jatuh tempo ≤ 7 hari lagi tetapi sudah masuk bulan berikutnya
+    var depan = (pg.bulanDepan || []).filter(function (it) { return !it.lunas; });
+    if (depan.length) {
+      mendesak += depan.length;
+      var kDepan = depan[0].tgl.slice(0, 7), totDepan = depan.reduce(function (t, x) { return t + x.sisa; }, 0);
+      var bukaD = Object.prototype.hasOwnProperty.call(mgPilih.buka, 'd') ? !!mgPilih.buka.d : true;
+      kartu += '<div class="card mg depan' + (bukaD ? '' : ' tutup desak') + '" data-mg="d">' +
+        '<div class="mg-h" role="button" tabindex="0" aria-expanded="' + bukaD + '" aria-controls="mgIsid" aria-label="Awal bulan depan">' +
+        '<div class="row"><span class="lbl">Awal bulan depan</span><span class="sp"></span><small class="mono muted">' + esc(KB.bulan(kDepan)) + '</small><span class="panah">' + ic('expand_more') + '</span></div>' +
+        '<div class="row ringkas"><small class="muted">' + depan.length + ' cicilan · <b class="num">' + KB.rp(totDepan) + '</b></small><span class="sp"></span>' +
+        '<span class="pill bad kedip">' + ic('notifications_active', 's16') + depan.length + ' segera</span></div></div>' +
+        '<div class="mg-isi" id="mgIsid"' + (bukaD ? '' : ' hidden') + '>' + depan.map(function (it) {
+          var n = selisih(hari, it.tgl);
+          return '<div class="it dekat"><div class="row"><b style="font-size:13px">' + esc(it.pihak) + '</b><span class="sp"></span><span class="pill warn">' + esc(KB.tglPendek(it.tgl)) + '</span></div>' +
+            '<div class="row"><small class="muted">Cicilan ' + it.ke + '/' + it.dari + ' · ' + esc(KB.hLagi(n)) + '</small><span class="sp"></span>' + uang(it.sisa) + '</div></div>';
+        }).join('') + '</div></div>';
+    }
     html += '<section><div class="sec-h"><div class="t"><h2>Pengingat jatuh tempo</h2><p>Cicilan ' + esc(KB.bulan(kini)) + ' per minggu · ketuk minggu untuk buka/tutup</p></div>' +
       '<div class="aksi">' + (mendesak ? '<span class="pill bad kedip">' + ic('notifications_active', 's16') + mendesak + ' perlu segera dibayar</span>' : '') +
       '<span class="pill ' + (pg.sisaBulan ? 'warn' : 'ok') + '">' + (pg.sisaBulan ? 'Belum dibayar ' + KB.rp(pg.sisaBulan) : 'Semua terbayar') + '</span></div></div>';

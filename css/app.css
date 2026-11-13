@@ -456,6 +456,8 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 32px; ba
 .mg-isi[hidden] { display: none; }
 .mg .panah { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--head); color: var(--muted); transition: transform .2s; }
 .mg-h[aria-expanded="true"] .panah { transform: rotate(180deg); }
+.mg.depan { grid-column: 1 / -1; border-style: dashed; border-color: var(--amber-bd); }
+@media (min-width: 640px) { .mg.depan .mg-isi { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); } .mg.depan .mg-isi[hidden] { display: none; } }
 .mg.desak { border-color: var(--red-bd); --nyala: rgba(240,68,56,.45); animation: nyala 1.6s ease-in-out infinite; }
 .mg .it .uang { white-space: nowrap; }
 .mg .it small { min-width: 0; }

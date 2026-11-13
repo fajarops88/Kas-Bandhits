@@ -321,7 +321,9 @@ var Hitung = (function () {
         jmlPemasukan: tb.jmlPemasukan, jmlPengeluaran: tb.jmlPengeluaran },
       pengingat: {
         minggu: pg.minggu.map(function (m) { return { ke: m.ke, dari: m.dari, sampai: m.sampai, total: m.total, sisa: m.sisa, items: m.items.map(bersih) }; }),
-        tunggakan: pg.tunggakan.map(bersih), totalBulan: pg.totalBulan, sisaBulan: pg.sisaBulan, totalTunggakan: pg.totalTunggakan
+        tunggakan: pg.tunggakan.map(bersih), totalBulan: pg.totalBulan, sisaBulan: pg.sisaBulan, totalTunggakan: pg.totalTunggakan,
+        // Cicilan bulan depan yang jatuh tempo ≤ 7 hari lagi (menjelang akhir bulan), belum lunas
+        bulanDepan: pg.tujuhHari.filter(function (it) { return bk(it.tgl) > kini && it.hariLagi >= 0; }).map(bersih)
       },
       proyeksi: proyeksi(data, hariIni, 5).map(function (r) {
         return { bulan: r.bulan, berjalan: r.berjalan, saldoAwal: r.saldoAwal, pemasukan: r.pemasukan, pengeluaran: r.pengeluaran, cicilan: r.cicilan, saldoAkhir: r.saldoAkhir };
