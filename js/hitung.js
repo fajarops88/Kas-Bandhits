@@ -323,10 +323,10 @@ var Hitung = (function () {
         minggu: pg.minggu.map(function (m) { return { ke: m.ke, dari: m.dari, sampai: m.sampai, total: m.total, sisa: m.sisa, items: m.items.map(bersih) }; }),
         tunggakan: pg.tunggakan.map(bersih), totalBulan: pg.totalBulan, sisaBulan: pg.sisaBulan, totalTunggakan: pg.totalTunggakan
       },
-      proyeksi: proyeksi(data, hariIni, 3).map(function (r) {
+      proyeksi: proyeksi(data, hariIni, 5).map(function (r) {
         return { bulan: r.bulan, berjalan: r.berjalan, saldoAwal: r.saldoAwal, pemasukan: r.pemasukan, pengeluaran: r.pengeluaran, cicilan: r.cicilan, saldoAkhir: r.saldoAkhir };
       }),
-      terbaru: terbaru(data, hariIni, 10).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; })
+      terbaru: terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; })
     };
   }
 

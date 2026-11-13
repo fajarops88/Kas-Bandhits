@@ -423,6 +423,40 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 32px; ba
 .sec-h .t { flex: 1; } .sec-h h2 { font-size: 16px; } .sec-h p { font-size: 12.5px; color: var(--muted); }
 .pub-foot { text-align: center; color: var(--faint); font-size: 12px; padding: 8px 0 24px; }
 
+/* Halaman publik — efek interaktif.
+   Hanya transform/box-shadow supaya ringan; berhenti otomatis bila
+   perangkat meminta "kurangi gerakan" (aturan di akhir berkas). */
+.kilau { --nyala: rgba(14,149,148,.45); --kilap: rgba(14,149,148,.16); --tunda: 0s;
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1);
+  animation: nyala 3.2s ease-in-out var(--tunda) infinite; will-change: transform; }
+.kilau::before { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, var(--kilap) 48%, transparent 66%);
+  transform: translateX(-130%); animation: sapu 3.2s ease-in-out var(--tunda) infinite; }
+.kilau > * { position: relative; z-index: 1; }
+.hero.kilau { --nyala: rgba(46,211,183,.5); --kilap: rgba(255,255,255,.16); }
+.kilau-in { --nyala: rgba(23,178,106,.42); --kilap: rgba(23,178,106,.16); --tunda: .5s; }
+.kilau-out { --nyala: rgba(240,68,56,.38); --kilap: rgba(240,68,56,.14); --tunda: 1s; }
+@media (hover: hover) { .kilau:hover { transform: scale(1.03); z-index: 2; } }
+.kilau:active { transform: scale(1.02); }
+@keyframes sapu { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(130%); } }
+@keyframes nyala { 0%, 100% { box-shadow: var(--sh-1), 0 0 0 0 transparent; } 50% { box-shadow: var(--sh-1), 0 0 22px 2px var(--nyala); } }
+
+/* Pengingat: buka/tutup + cicilan mendesak berdenyut sampai dibayar */
+.lipat { cursor: pointer; user-select: none; border-radius: var(--r-md); align-items: center; }
+.lipat:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.lipat .aksi { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 639px) { .lipat .aksi { justify-content: flex-start; width: 100%; } }
+.mg .it .uang { white-space: nowrap; }
+.mg .it small { min-width: 0; }
+.lipat .panah { display: grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--head); color: var(--muted); transition: transform .2s; }
+.lipat[aria-expanded="true"] .panah { transform: rotate(180deg); }
+.mg .it.dekat, .mg .it.telat { --nyala: rgba(247,144,9,.55); border: 1px solid var(--amber-bd); background: var(--amber-bg);
+  animation: denyut-zoom 1.6s ease-in-out infinite; will-change: transform; }
+.mg .it.telat { --nyala: rgba(240,68,56,.6); border-color: var(--red-bd); background: var(--red-bg); animation-duration: 1.1s; }
+.kedip { --nyala: rgba(240,68,56,.55); --sh-1: 0 0 0 transparent; animation: nyala 1.4s ease-in-out infinite; }
+@keyframes denyut-zoom { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 transparent; } 50% { transform: scale(1.04); box-shadow: 0 0 16px 2px var(--nyala); } }
+
 /* Cetak laporan / PDF */
 @media print {
   @page { size: A4; margin: 14mm; }
