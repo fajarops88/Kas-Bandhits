@@ -1,5 +1,5 @@
 /* Service worker Kas Bandhits — aset statis instan dari cache, data selalu dari server. */
-const VERSI = 'kb-a6d57b26f7';
+const VERSI = 'kb-45acb5c5e1';
 const ASET = ["./", "./index.html", "./admin.html", "./manifest.json", "./manifest-admin.json", "./assets/logo.svg", "./assets/icon-192.png", "./assets/apple-touch-icon.png", "./css/app.css?v=e76e7f86", "./js/config.js?v=64ec8ffa", "./js/inti.js?v=5a933998", "./js/publik.js?v=82ddc99d", "./js/tema.js?v=dfef444d", "./js/hitung.js?v=a44fa5a3", "./js/admin.js?v=748c52cd"];
 const FONT = 'kb-font-v1';
 
