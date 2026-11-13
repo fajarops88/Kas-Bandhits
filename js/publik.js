@@ -1,7 +1,7 @@
 /* =====================================================================
  * KAS BANDHITS — Halaman publik (hanya baca, tanpa login)
  * Enam bagian: saldo kas, pemasukan & pengeluaran bulan berjalan,
- * pengingat jatuh tempo per minggu (bisa dibuka/tutup), proyeksi 5 bulan,
+ * pengingat jatuh tempo per minggu (tiap minggu bisa dibuka/tutup), proyeksi 5 bulan,
  * 5 transaksi terbaru. Kartu utama berkilau terus dan membesar saat disorot;
  * cicilan yang mendekati jatuh tempo (≤ 7 hari) berdenyut sampai dibayar.
  * Tampil instan dari salinan lokal, lalu diperbarui dari server.
@@ -11,7 +11,9 @@
   var KB = window.KB, esc = KB.esc, ic = KB.ic, uang = KB.uang;
   var root = document.getElementById('pub'), status = document.getElementById('status');
   var terakhirAmbil = 0, sibuk = false;
-  var pgBuka = !!KB.ls.get('kb_pub_pg', false);   // pengingat tertutup bawaan, pilihan diingat
+  // Buka/tutup per minggu. Bawaan: minggu berjalan & minggu yang punya cicilan mendesak terbuka.
+  // Pilihan pengguna diingat per bulan (bulan berganti → kembali ke bawaan).
+  var mgPilih = KB.ls.get('kb_pub_mg', null);
   var MAKS_TERBARU = 5, DEKAT = 7;
 
   /** Selisih hari kalender a → b (format YYYY-MM-DD). */
@@ -44,31 +46,44 @@
       '<div class="card metric kilau kilau-out"><div class="top"><span class="lbl">Pengeluaran ' + esc(KB.bulan(kini)) + '</span><span class="ibox" style="color:var(--red-d)">' + ic('north_east') + '</span></div>' +
       '<div class="v minus">' + uang(s.bulan.pengeluaran) + '</div><div class="foot">' + s.bulan.jmlPengeluaran + ' transaksi' +
       (s.bulan.cicilan ? ' · termasuk cicilan ' + uang(s.bulan.cicilan) : '') + '</div></div></section>';
-    // 4. Pengingat jatuh tempo per minggu (buka/tutup)
+    // 4. Pengingat jatuh tempo — tiap minggu bisa dibuka/tutup sendiri
     var pg = s.pengingat, mingguKini = Hari.mingguKe(hari), mendesak = pg.tunggakan.length;
-    var isi = '';
-    if (pg.tunggakan.length) {
-      isi += '<div class="note bad mb12 kedip">' + ic('warning') + '<div><b>Tunggakan bulan sebelumnya: ' + uang(pg.totalTunggakan) + '</b><br>' +
-        pg.tunggakan.map(function (t) { return esc(t.pihak) + ' cicilan ke-' + t.ke + ' (' + esc(KB.tglPendek(t.tgl)) + ')'; }).join(', ') + '</div></div>';
-    }
-    isi += '<div class="minggu">' + pg.minggu.map(function (m, i) {
-      var items = m.items.length ? m.items.map(function (it) {
+    if (!mgPilih || mgPilih.bulan !== kini) mgPilih = { bulan: kini, buka: {} };
+    var kartu = pg.minggu.map(function (m, i) {
+      var desakMinggu = 0, belum = 0;
+      var items = m.items.map(function (it) {
         var n = selisih(hari, it.tgl), kelas = it.lunas ? 'lunas' : n < 0 ? 'telat' : n <= DEKAT ? 'dekat' : '';
-        if (kelas === 'telat' || kelas === 'dekat') mendesak++;
+        if (kelas === 'telat' || kelas === 'dekat') desakMinggu++;
+        if (!it.lunas) belum++;
         return '<div class="it ' + kelas + '"><div class="row"><b style="font-size:13px">' + esc(it.pihak) + '</b><span class="sp"></span>' +
           (it.lunas ? '<span class="pill ok">' + ic('check', 's16') + 'Lunas</span>' : '<span class="pill ' + (n < 0 ? 'bad' : 'warn') + '">' + esc(KB.tglPendek(it.tgl)) + '</span>') + '</div>' +
           '<div class="row"><small class="muted">Cicilan ' + it.ke + '/' + it.dari + (it.lunas ? '' : ' · ' + esc(KB.hLagi(n))) + '</small><span class="sp"></span>' + uang(it.lunas ? it.nominal : it.sisa) + '</div></div>';
-      }).join('') : '<div class="kosong" style="padding:14px 4px">' + ic(i < mingguKini ? 'task_alt' : 'event_available') + '<small>Tidak ada jadwal</small></div>';
-      return '<div class="card mg ' + (i === mingguKini ? 'kini' : '') + '"><div class="row"><span class="lbl">Minggu ' + m.ke + '</span><span class="sp"></span><small class="mono muted">' +
-        +m.dari.slice(8) + '–' + +m.sampai.slice(8) + ' ' + KB.BLN[+m.dari.slice(5, 7) - 1] + '</small></div>' + items +
-        (m.items.length ? '<div class="row" style="margin-top:auto"><small class="muted">Total</small><span class="sp"></span><b>' + uang(m.total) + '</b></div>' : '') + '</div>';
-    }).join('') + '</div>';
-    html += '<section><div class="sec-h lipat" id="pgTog" role="button" tabindex="0" aria-controls="pgIsi" aria-expanded="' + pgBuka + '">' +
-      '<div class="t"><div class="row"><h2>Pengingat jatuh tempo</h2><span class="panah">' + ic('expand_more') + '</span></div><p>Cicilan ' + esc(KB.bulan(kini)) + ' per minggu · ketuk untuk ' + (pgBuka ? 'menutup' : 'membuka') + '</p></div>' +
+      }).join('');
+      mendesak += desakMinggu;
+      var rentang = +m.dari.slice(8) + '–' + +m.sampai.slice(8) + ' ' + KB.BLN[+m.dari.slice(5, 7) - 1];
+      var kelasKartu = 'card mg' + (i === mingguKini ? ' kini' : '');
+      if (!m.items.length) {
+        return '<div class="' + kelasKartu + ' kosong-mg"><div class="row"><span class="lbl">Minggu ' + m.ke + '</span><span class="sp"></span><small class="mono muted">' + rentang + '</small></div>' +
+          '<div class="row ringkas"><small class="muted">' + ic(i < mingguKini ? 'task_alt' : 'event_available', 's16') + 'Tidak ada jadwal</small></div></div>';
+      }
+      var buka = Object.prototype.hasOwnProperty.call(mgPilih.buka, i) ? !!mgPilih.buka[i] : (i === mingguKini || desakMinggu > 0);
+      var status = !belum ? '<span class="pill ok">' + ic('check', 's16') + 'Lunas semua</span>'
+        : desakMinggu ? '<span class="pill bad kedip">' + ic('notifications_active', 's16') + desakMinggu + ' segera</span>'
+        : '<span class="pill warn">' + belum + ' belum</span>';
+      return '<div class="' + kelasKartu + (buka ? '' : ' tutup') + (desakMinggu && !buka ? ' desak' : '') + '" data-mg="' + i + '">' +
+        '<div class="mg-h" role="button" tabindex="0" aria-expanded="' + buka + '" aria-controls="mgIsi' + i + '" aria-label="Minggu ' + m.ke + ', ' + rentang + '">' +
+        '<div class="row"><span class="lbl">Minggu ' + m.ke + '</span><span class="sp"></span><small class="mono muted">' + rentang + '</small><span class="panah">' + ic('expand_more') + '</span></div>' +
+        '<div class="row ringkas"><small class="muted">' + m.items.length + ' cicilan · <b class="num">' + KB.rp(m.total) + '</b></small><span class="sp"></span>' + status + '</div></div>' +
+        '<div class="mg-isi" id="mgIsi' + i + '"' + (buka ? '' : ' hidden') + '>' + items + '</div></div>';
+    }).join('');
+    html += '<section><div class="sec-h"><div class="t"><h2>Pengingat jatuh tempo</h2><p>Cicilan ' + esc(KB.bulan(kini)) + ' per minggu · ketuk minggu untuk buka/tutup</p></div>' +
       '<div class="aksi">' + (mendesak ? '<span class="pill bad kedip">' + ic('notifications_active', 's16') + mendesak + ' perlu segera dibayar</span>' : '') +
-      '<span class="pill ' + (pg.sisaBulan ? 'warn' : 'ok') + '">' + (pg.sisaBulan ? 'Belum dibayar ' + KB.rp(pg.sisaBulan) : 'Semua terbayar') + '</span>' +
-      '</div></div>' +
-      '<div id="pgIsi"' + (pgBuka ? '' : ' hidden') + '>' + isi + '</div></section>';
+      '<span class="pill ' + (pg.sisaBulan ? 'warn' : 'ok') + '">' + (pg.sisaBulan ? 'Belum dibayar ' + KB.rp(pg.sisaBulan) : 'Semua terbayar') + '</span></div></div>';
+    if (pg.tunggakan.length) {
+      html += '<div class="note bad mb12 kedip">' + ic('warning') + '<div><b>Tunggakan bulan sebelumnya: ' + uang(pg.totalTunggakan) + '</b><br>' +
+        pg.tunggakan.map(function (t) { return esc(t.pihak) + ' cicilan ke-' + t.ke + ' (' + esc(KB.tglPendek(t.tgl)) + ')'; }).join(', ') + '</div></div>';
+    }
+    html += '<div class="minggu">' + kartu + '</div></section>';
     // 5. Proyeksi (5 bulan; jumlah baris mengikuti data dari server)
     var nPr = s.proyeksi.length;
     html += '<section><div class="sec-h"><div class="t"><h2>Proyeksi ' + nPr + ' bulan</h2><p>Bulan berjalan dan ' + (nPr - 1) + ' bulan berikutnya</p></div></div>' +
@@ -90,17 +105,18 @@
     root.innerHTML = html;
     document.getElementById('foot').textContent = '© 2026 Kas Bandhits by Fajar Ferdian K. Seluruh hak cipta dilindungi';
   }
-  // Buka/tutup pengingat tanpa menggambar ulang halaman.
-  function togglePengingat() {
-    var t = document.getElementById('pgTog'), isi = document.getElementById('pgIsi');
-    if (!t || !isi) return;
-    pgBuka = !pgBuka; KB.ls.set('kb_pub_pg', pgBuka);
-    t.setAttribute('aria-expanded', String(pgBuka)); isi.hidden = !pgBuka;
-    var p = t.querySelector('p'); if (p) p.textContent = p.textContent.replace(/ketuk untuk \S+/, 'ketuk untuk ' + (pgBuka ? 'menutup' : 'membuka'));
+  // Buka/tutup satu minggu tanpa menggambar ulang halaman.
+  function toggleMinggu(h) {
+    var kartu = h.closest('.mg'), i = kartu.getAttribute('data-mg'), isi = kartu.querySelector('.mg-isi');
+    var buka = h.getAttribute('aria-expanded') !== 'true';
+    h.setAttribute('aria-expanded', String(buka)); isi.hidden = !buka;
+    kartu.classList.toggle('tutup', !buka);
+    kartu.classList.toggle('desak', !buka && !!kartu.querySelector('.it.dekat, .it.telat'));
+    if (mgPilih) { mgPilih.buka[i] = buka; KB.ls.set('kb_pub_mg', mgPilih); }
   }
-  root.addEventListener('click', function (e) { if (e.target.closest('#pgTog')) togglePengingat(); });
+  root.addEventListener('click', function (e) { var h = e.target.closest('.mg-h'); if (h) toggleMinggu(h); });
   root.addEventListener('keydown', function (e) {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.id === 'pgTog') { e.preventDefault(); togglePengingat(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('mg-h')) { e.preventDefault(); toggleMinggu(e.target); }
   });
 
   var Hari = { mingguKe: function (t) { var d = +t.slice(8, 10); return d <= 7 ? 0 : d <= 14 ? 1 : d <= 21 ? 2 : 3; } };

@@ -442,15 +442,23 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 32px; ba
 @keyframes sapu { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(130%); } }
 @keyframes nyala { 0%, 100% { box-shadow: var(--sh-1), 0 0 0 0 transparent; } 50% { box-shadow: var(--sh-1), 0 0 22px 2px var(--nyala); } }
 
-/* Pengingat: buka/tutup + cicilan mendesak berdenyut sampai dibayar */
-.lipat { cursor: pointer; user-select: none; border-radius: var(--r-md); align-items: center; }
-.lipat:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
-.lipat .aksi { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-@media (max-width: 639px) { .lipat .aksi { justify-content: flex-start; width: 100%; } }
+/* Pengingat publik: tiap minggu buka/tutup sendiri; cicilan mendesak berdenyut sampai dibayar */
+.pub .sec-h .aksi { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 639px) { .pub .sec-h .aksi { justify-content: flex-start; width: 100%; } }
+.pub .minggu { align-items: start; }
+.pub .mg { min-height: 0; }
+.mg-h { display: flex; flex-direction: column; gap: 6px; cursor: pointer; user-select: none; border-radius: var(--r-md); margin: -4px; padding: 4px; }
+.mg-h:hover { background: color-mix(in srgb, var(--head) 60%, transparent); }
+.mg-h:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.mg .ringkas { min-height: 24px; flex-wrap: wrap; row-gap: 6px; }
+.mg .ringkas small { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.mg-isi { display: flex; flex-direction: column; gap: 8px; }
+.mg-isi[hidden] { display: none; }
+.mg .panah { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--head); color: var(--muted); transition: transform .2s; }
+.mg-h[aria-expanded="true"] .panah { transform: rotate(180deg); }
+.mg.desak { border-color: var(--red-bd); --nyala: rgba(240,68,56,.45); animation: nyala 1.6s ease-in-out infinite; }
 .mg .it .uang { white-space: nowrap; }
 .mg .it small { min-width: 0; }
-.lipat .panah { display: grid; place-items: center; width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--head); color: var(--muted); transition: transform .2s; }
-.lipat[aria-expanded="true"] .panah { transform: rotate(180deg); }
 .mg .it.dekat, .mg .it.telat { --nyala: rgba(247,144,9,.55); border: 1px solid var(--amber-bd); background: var(--amber-bg);
   animation: denyut-zoom 1.6s ease-in-out infinite; will-change: transform; }
 .mg .it.telat { --nyala: rgba(240,68,56,.6); border-color: var(--red-bd); background: var(--red-bg); animation-duration: 1.1s; }
