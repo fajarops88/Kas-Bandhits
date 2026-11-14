@@ -328,11 +328,32 @@ var Hitung = (function () {
       proyeksi: proyeksi(data, hariIni, 5).map(function (r) {
         return { bulan: r.bulan, berjalan: r.berjalan, saldoAwal: r.saldoAwal, pemasukan: r.pemasukan, pengeluaran: r.pengeluaran, cicilan: r.cicilan, saldoAkhir: r.saldoAkhir };
       }),
-      terbaru: terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; })
+      terbaru: terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; }),
+      keinginan: keinginanPublik(data)
+    };
+  }
+
+  /** Keinginan & hajatan untuk halaman publik (hanya baca): aktif per prioritas sesuai urutan, plus 5 yang terakhir tercapai.
+   *  Hanya butir yang diizinkan tampil (publik ≠ 'Tidak'); null bila bagian ini dimatikan di admin.
+   *  Hanya field tampilan; ID dan nilai urutan tidak dikirim. */
+  function keinginanPublik(data) {
+    if (data && data.set && data.set.publik_keinginan === 'off') return null;
+    var semua = ((data && data.keinginan) || []).filter(function (x) { return x.publik !== 'Tidak'; }), aktif = {}, total = 0;
+    ['Tinggi', 'Sedang', 'Rendah'].forEach(function (p) {
+      aktif[p] = semua.filter(function (x) { return x.status !== 'Selesai' && x.prioritas === p; })
+        .sort(function (a, b) { return (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.id > b.id ? 1 : -1); })
+        .map(function (x) { total += Number(x.dana) || 0; return { nama: x.nama, dana: Number(x.dana) || 0, waktu: x.waktu || '' }; });
+    });
+    var selesai = semua.filter(function (x) { return x.status === 'Selesai'; });
+    return {
+      aktif: aktif, total: total, jmlSelesai: selesai.length,
+      selesai: selesai.sort(function (a, b) { return a.selesai < b.selesai ? 1 : a.selesai > b.selesai ? -1 : 0; }).slice(0, 5)
+        .map(function (x) { return { nama: x.nama, dana: Number(x.dana) || 0, selesai: x.selesai || '' }; })
     };
   }
 
   return {
+    keinginanPublik: keinginanPublik,
     pad: pad, num: num, tglValid: tglValid, bulanValid: bulanValid, bk: bk, geserBulan: geserBulan,
     tambahBulan: tambahBulan, tambahHari: tambahHari, selisihHari: selisihHari, hariAkhir: hariAkhir, idWaktu: idWaktu,
     jadwalPinjaman: jadwalPinjaman, semuaPinjaman: semuaPinjaman, saldoKas: saldoKas, totalBulan: totalBulan,

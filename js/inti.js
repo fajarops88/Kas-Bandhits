@@ -11,7 +11,7 @@
   var HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
   var KB = window.KB = {
-    VERSI: '2.3.0',   // naikkan setiap ada perubahan frontend (lihat CATATAN-VERSI.md)
+    VERSI: '2.5.0',   // naikkan setiap ada perubahan frontend (lihat CATATAN-VERSI.md)
     BULAN: BULAN, BLN: BLN, HARI: HARI,
     siap: !!GAS && !/GANTI|XXXX/.test(GAS)
   };

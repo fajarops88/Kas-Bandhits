@@ -40,7 +40,7 @@
   const UI = { view: 'dashboard', shell: false };
   let _uidT = 0;
   function uid(p) { let t = Date.now(); if (t <= _uidT) t = _uidT + 1; _uidT = t; return p + '-' + t + '-' + (1000 + Math.floor(Math.random() * 9000)); }
-  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '' } }; }
+  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on' } }; }
   function normal(d) {
     const o = dataKosong();
     if (!d) return o;
@@ -1041,9 +1041,10 @@
     const total = (arr) => arr.reduce((s, x) => s + Number(x.dana || 0), 0);
     const baris = (x, i, n) => `<div class="trow kg ${x._p ? 'pending' : ''}" data-kg="${esc(x.id)}" ${st.tab === 'aktif' ? 'draggable="true"' : ''}>
         ${st.tab === 'aktif' ? `<span class="pegang" title="Seret untuk mengurutkan" aria-hidden="true">${ic('drag_indicator')}</span><span class="no">${i + 1}</span>` : `<div class="ico" style="background:var(--green-bg);color:var(--green-d)">${ic('task_alt')}</div>`}
-        <div class="t"><b>${esc(x.nama)}</b><small>${x.waktu ? ic('schedule', 's16') + esc(x.waktu) : 'Waktu belum ditentukan'}${st.tab === 'selesai' ? ' · ' + esc(x.prioritas) + (x.selesai ? ' · selesai ' + esc(KB.tglPendek(x.selesai)) : '') : ''}${pend(x)}</small></div>
+        <div class="t"><b>${esc(x.nama)}</b><small>${x.publik === 'Tidak' ? `<span class="kg-sembunyi">${ic('public_off', 's16')}Tidak tampil di publik</span> · ` : ''}${x.waktu ? ic('schedule', 's16') + esc(x.waktu) : 'Waktu belum ditentukan'}${st.tab === 'selesai' ? ' · ' + esc(x.prioritas) + (x.selesai ? ' · selesai ' + esc(KB.tglPendek(x.selesai)) : '') : ''}${pend(x)}</small></div>
         <div class="n">${uang(x.dana)}<small>dibutuhkan</small></div>
         <div class="aksi">${st.tab === 'aktif' ? btn('kg-geser', '', 'arrow_upward', 'ghost ico sm', `data-id="${esc(x.id)}" data-arah="-1" aria-label="Naikkan" title="Naikkan" ${i === 0 ? 'disabled' : ''}`) + btn('kg-geser', '', 'arrow_downward', 'ghost ico sm', `data-id="${esc(x.id)}" data-arah="1" aria-label="Turunkan" title="Turunkan" ${i === n - 1 ? 'disabled' : ''}`) : ''}
+          ${btn('kg-publik', '', x.publik === 'Tidak' ? 'public_off' : 'public', 'ghost ico sm' + (x.publik === 'Tidak' ? '' : ' kg-pub-on'), `data-id="${esc(x.id)}" aria-pressed="${x.publik !== 'Tidak'}" aria-label="${x.publik === 'Tidak' ? 'Tampilkan di halaman publik' : 'Sembunyikan dari halaman publik'}" title="${x.publik === 'Tidak' ? 'Tidak tampil di publik — klik untuk menampilkan' : 'Tampil di publik — klik untuk menyembunyikan'}"`)}
           ${btn('kg-status', '', st.tab === 'aktif' ? 'task_alt' : 'undo', 'ghost ico sm', `data-id="${esc(x.id)}" aria-label="${st.tab === 'aktif' ? 'Tandai selesai' : 'Aktifkan lagi'}" title="${st.tab === 'aktif' ? 'Tandai selesai' : 'Aktifkan lagi'}"`)}
           ${btn('ubah-kg', '', 'edit', 'ghost ico sm', `data-id="${esc(x.id)}" aria-label="Ubah" title="Ubah"`)}</div></div>`;
     let isi;
@@ -1062,6 +1063,12 @@
         ${metric('Total dana dibutuhkan', uang(total(aktif)), aktif.length + ' keinginan aktif', 'volunteer_activism')}
         ${PRIO.map(p => metric('Prioritas ' + p[0].toLowerCase(), uang(total(kgGrup(p[0]))), kgGrup(p[0]).length + ' butir', p[2], p[1] === 'bad' ? 'var(--red-d)' : p[1] === 'warn' ? 'var(--amber-d)' : 'var(--teal-d)')).join('')}
       </div>
+      ${(() => {
+        const on = S.data.set.publik_keinginan !== 'off', semua = S.data.keinginan, tampil = semua.filter(x => x.publik !== 'Tidak').length;
+        return `<div class="card mt16 kg-saklar"><div class="set-row"><div class="t"><b>${ic('public', 's18')}Tampilkan di halaman publik</b>
+          <small>${on ? `${tampil} dari ${semua.length} butir ditampilkan (hanya bisa dilihat). Atur per butir lewat ikon ${ic('public', 's16')} di tiap baris.` : 'Bagian Keinginan &amp; hajatan disembunyikan seluruhnya dari halaman publik.'}</small></div>
+          <label class="switch"><input type="checkbox" data-act="kg-publik-semua" ${on ? 'checked' : ''} aria-label="Tampilkan keinginan di halaman publik"><span></span></label></div></div>`;
+      })()}
       <div class="row wrap mt16 mb12"><div class="seg" role="tablist">${[['aktif', 'Aktif (' + aktif.length + ')'], ['selesai', 'Selesai (' + selesai.length + ')']].map(o => `<button type="button" class="${st.tab === o[0] ? 'on' : ''}" data-act="kg-tab" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
         <span class="sp"></span>${st.tab === 'aktif' && aktif.length > 1 ? `<small class="muted desk-saja">Seret ${ic('drag_indicator', 's16')} atau pakai panah untuk mengurutkan dalam grup.</small>` : ''}</div>
       <div class="stack kg-wadah">${isi}</div>`;
@@ -1107,6 +1114,7 @@
         <div class="chips">${[[-1000000, '−1 jt'], [-100000, '−100 rb'], [100000, '+100 rb'], [1000000, '+1 jt'], [10000000, '+10 jt']].map(c => `<button type="button" class="chip" data-act="kg-dana" data-v="${c[0]}">${c[1]}</button>`).join('')}</div>
         <div class="field"><label for="f-waktu">Waktu <small>teks bebas, tidak harus tanggal</small></label><input id="f-waktu" class="inp" name="waktu" maxlength="80" value="${esc(rec ? rec.waktu : '')}" placeholder="Contoh: Lebaran 2027, setelah lunas KPR" autocomplete="off"></div>
         <div class="field"><span class="flabel">Prioritas</span><div class="seg blk">${PRIO.map(p => `<button type="button" class="${p[0] === prio ? 'on' : ''}" data-act="set-prio" data-v="${p[0]}">${ic(p[2], 's18')}${p[0]}</button>`).join('')}</div><input type="hidden" name="prioritas" value="${prio}"></div>
+        <label class="row"><span class="switch"><input type="checkbox" name="publik" ${!rec || rec.publik !== 'Tidak' ? 'checked' : ''}><span></span></span><span>Tampilkan di halaman publik <small class="muted">(hanya bisa dilihat)</small></span></label>
         ${baru ? '' : `<label class="row"><span class="switch"><input type="checkbox" name="selesai" ${status === 'Selesai' ? 'checked' : ''}><span></span></span><span>Sudah tercapai (pindah ke riwayat Selesai)</span></label>`}
         <p class="err" data-err hidden></p>
       </div>${kaki(baru ? 'Simpan' : 'Simpan perubahan', 'pri', baru ? '' : btn('hapus', 'Hapus', 'delete', 'danger sm', `data-tabel="keinginan" data-id="${esc(id)}"`))}</form>`);
@@ -1115,7 +1123,7 @@
     const baru = f.dataset.baru === '1', lama = baru ? null : cari(S.data.keinginan, f.dataset.id);
     const selesai = !!(f.selesai && f.selesai.checked);
     const rec = { id: f.dataset.id, nama: f.nama.value.trim(), dana: angkaDari(f.dana.value), waktu: f.waktu.value.trim(), prioritas: f.prioritas.value,
-      status: selesai ? 'Selesai' : 'Aktif', selesai: selesai ? (lama && lama.selesai) || KB.hariIni() : '' };
+      status: selesai ? 'Selesai' : 'Aktif', selesai: selesai ? (lama && lama.selesai) || KB.hariIni() : '', publik: f.publik.checked ? 'Ya' : 'Tidak' };
     if (!rec.nama) return errForm(f, 'Isi nama keinginan atau hajatan.');
     if (!(rec.dana > 0)) return errForm(f, 'Isi dana yang dibutuhkan.');
     // Butir baru, pindah grup, atau aktif lagi → taruh di akhir grup; selain itu urutan tetap.
@@ -1200,6 +1208,13 @@
     'ubah-kg': (el) => { const x = cari(S.data.keinginan, el.dataset.id); if (x) formKeinginan(x); },
     'kg-tab': (el) => { UI.kg = Object.assign(UI.kg || {}, { tab: el.dataset.v }); render(); },
     'kg-geser': (el) => kgGeser(el.dataset.id, Number(el.dataset.arah)),
+    'kg-publik': (el) => {
+      const x = cari(S.data.keinginan, el.dataset.id); if (!x) return;
+      const tampil = x.publik === 'Tidak';
+      antre({ act: 'simpan', tabel: 'keinginan', baru: false, rec: Object.assign({}, x, { publik: tampil ? 'Ya' : 'Tidak' }) });
+      KB.toast(tampil ? '"' + x.nama + '" tampil di halaman publik.' : '"' + x.nama + '" disembunyikan dari halaman publik.');
+    },
+    'kg-publik-semua': (el) => { antre({ act: 'set', kunci: 'publik_keinginan', nilai: el.checked ? 'on' : 'off' }); KB.toast(el.checked ? 'Keinginan ditampilkan di halaman publik.' : 'Keinginan disembunyikan dari halaman publik.'); },
     'kg-status': (el) => {
       const x = cari(S.data.keinginan, el.dataset.id); if (!x) return;
       const selesai = x.status !== 'Selesai';
