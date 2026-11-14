@@ -279,6 +279,10 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 32px; ba
 .kg-sembunyi { color: var(--amber-d); display: inline-flex; align-items: center; gap: 3px; }
 .trow.kg .kg-pub-on { color: var(--teal-d); }
 .kg-saklar .set-row { padding: 12px 16px; }
+.dash-blok > * + * { margin-top: 16px; }
+.dash-atur { border-color: var(--teal); box-shadow: 0 0 0 3px var(--teal-bg); }
+.dash-atur .card-h { flex-wrap: wrap; row-gap: 8px; }
+.btn.on { background: var(--teal-bg); color: var(--teal-d); border-color: var(--teal); }
 .menu-row .t b { display: inline-flex; align-items: center; gap: 8px; }
 .menu-row .t b .ic { color: var(--teal-d); }
 .menu-row.mati .t b { color: var(--muted); }

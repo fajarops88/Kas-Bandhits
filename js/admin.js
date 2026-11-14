@@ -57,7 +57,7 @@
   const UI = { view: 'dashboard', shell: false };
   let _uidT = 0;
   function uid(p) { let t = Date.now(); if (t <= _uidT) t = _uidT + 1; _uidT = t; return p + '-' + t + '-' + (1000 + Math.floor(Math.random() * 9000)); }
-  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '' } }; }
+  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '', dash_sembunyi: '' } }; }
   function normal(d) {
     const o = dataKosong();
     if (!d) return o;
@@ -463,6 +463,19 @@
   const VIEW = {}, AFTER = {};
 
   /* ---------- Dashboard ---------- */
+  /* Bagian dashboard yang bisa ditampilkan/disembunyikan (tersimpan di server, sama di semua perangkat). */
+  const DASH = [['kpi', 'Saldo, pemasukan & pengeluaran', 'account_balance_wallet', 'Tiga kartu ringkasan di paling atas'],
+    ['tempo', 'Pengingat jatuh tempo 7 hari', 'notifications_active', 'Cicilan yang jatuh tempo dalam 7 hari'],
+    ['proyeksi', 'Proyeksi saldo 4 bulan', 'query_stats', 'Tabel saldo akhir bulan berjalan s.d. 3 bulan ke depan'],
+    ['terakhir', 'Transaksi terakhir', 'receipt_long', '8 catatan terbaru'],
+    ['arus', 'Arus kas 6 bulan', 'bar_chart', 'Grafik pemasukan vs pengeluaran'],
+    ['kategori', 'Pengeluaran terbesar bulan ini', 'donut_large', '5 kategori pengeluaran terbesar']];
+  const dashSembunyi = () => String((S.data.set && S.data.set.dash_sembunyi) || '').split(',').filter(Boolean);
+  const dashTampil = (k) => dashSembunyi().indexOf(k) < 0;
+  function htmlDashAtur() {
+    return DASH.map(d => `<div class="set-row menu-row ${dashTampil(d[0]) ? '' : 'mati'}"><div class="t"><b>${ic(d[2], 's18')}${d[1]}</b><small>${d[3]}${dashTampil(d[0]) ? '' : ' · disembunyikan'}</small></div>
+      <label class="switch"><input type="checkbox" data-act="dash-tampil" data-k="${d[0]}" ${dashTampil(d[0]) ? 'checked' : ''} aria-label="Tampilkan ${d[1]}"><span></span></label></div>`).join('');
+  }
   VIEW.dashboard = function () {
     const m = M(), b = m.bulan, p0 = m.proy[0], lalu = H.totalBulan(S.data, H.geserBulan(m.kini, -1));
     const delta = (a, z) => z ? Math.round((a - z) / z * 100) : null;
@@ -474,29 +487,36 @@
     const katTop = Object.keys(katBulan).map(k => [k, katBulan[k]]).sort((a, z) => z[1] - a[1]).slice(0, 5), katTot = katTop.reduce((s, x) => s + x[1], 0) || 1;
     const due = m.pg.tujuhHari, terbaru = m.gab.filter(x => x.tgl <= m.t).slice(0, 8);
     return pageH('Ringkasan', 'Dashboard', `<b>${salam}${S.sesi && S.sesi.nama ? ', ' + esc(S.sesi.nama.split(' ')[0]) : ''}.</b> ${esc(KB.tglPanjang(m.t))}`,
-      btn('bayar-pilih', 'Catat cicilan', 'account_balance', '') + btn('tx-baru', 'Pengeluaran', 'north_east', '', 'data-jenis="Pengeluaran"') + btn('tx-baru', 'Pemasukan', 'south_west', 'pri', 'data-jenis="Pemasukan"')) +
-      `<div class="grid g3">
+      btn('dash-atur', 'Atur tampilan', 'tune', 'ghost' + (UI.dashAtur ? ' on' : ''), `aria-expanded="${!!UI.dashAtur}"`) + btn('bayar-pilih', 'Catat cicilan', 'account_balance', '') + btn('tx-baru', 'Pengeluaran', 'north_east', '', 'data-jenis="Pengeluaran"') + btn('tx-baru', 'Pemasukan', 'south_west', 'pri', 'data-jenis="Pemasukan"')) +
+      dashSusun({
+        kpi: `<div class="grid g3">
         ${metric('Saldo kas saat ini', uang(m.saldo), `Akhir bulan ini setelah cicilan: <b class="num uang" style="color:#fff">${KB.rp(p0.saldoAkhir)}</b>`, 'account_balance_wallet', '', 'hero')}
         ${metric('Pemasukan ' + KB.BULAN[+m.kini.slice(5) - 1], `<span class="plus">${uang(b.pemasukan)}</span>`, `${b.jmlPemasukan} transaksi ${chipD(dIn, true)}`, 'south_west', 'var(--green-d)')}
         ${metric('Pengeluaran ' + KB.BULAN[+m.kini.slice(5) - 1], `<span class="minus">${uang(b.pengeluaran)}</span>`, `${b.jmlPengeluaran} transaksi${b.cicilan ? ' · cicilan ' + uang(b.cicilan) : ''} ${chipD(dOut, false)}`, 'north_east', 'var(--red-d)')}
-      </div>
-      <div class="card mt16"><div class="card-h">${ic('notifications_active', 's18')}<h2>Pengingat jatuh tempo 7 hari</h2><span class="sp"></span><a href="#/pengingat" class="sub">Semua pengingat ${ic('chevron_right', 's16')}</a></div>
-        <div class="card-b">${due.length ? `<div class="hscroll">${due.map(it => itemDue(it)).join('')}</div>` : kosong('event_available', 'Tidak ada cicilan dalam 7 hari ke depan', m.pg.sisaBulan ? 'Sisa cicilan bulan ini ' + KB.rp(m.pg.sisaBulan) : '')}</div></div>
-      <div class="grid g-73 mt16">
-        <div class="card"><div class="card-h">${ic('query_stats', 's18')}<h2>Proyeksi saldo 4 bulan</h2><span class="sp"></span><a href="#/proyeksi" class="sub">36 bulan ${ic('chevron_right', 's16')}</a></div>
+      </div>`,
+        tempo: `<div class="card"><div class="card-h">${ic('notifications_active', 's18')}<h2>Pengingat jatuh tempo 7 hari</h2><span class="sp"></span><a href="#/pengingat" class="sub">Semua pengingat ${ic('chevron_right', 's16')}</a></div>
+        <div class="card-b">${due.length ? `<div class="hscroll">${due.map(it => itemDue(it)).join('')}</div>` : kosong('event_available', 'Tidak ada cicilan dalam 7 hari ke depan', m.pg.sisaBulan ? 'Sisa cicilan bulan ini ' + KB.rp(m.pg.sisaBulan) : '')}</div></div>`,
+        proyeksi: `<div class="card"><div class="card-h">${ic('query_stats', 's18')}<h2>Proyeksi saldo 4 bulan</h2><span class="sp"></span><a href="#/proyeksi" class="sub">36 bulan ${ic('chevron_right', 's16')}</a></div>
           <div class="tbl-w desk-saja"><table class="tbl"><thead><tr><th>Bulan</th><th class="r">Pemasukan</th><th class="r">Pengeluaran</th><th class="r">Cicilan</th><th class="r">Saldo akhir</th></tr></thead><tbody>
           ${m.proy.slice(0, 4).map(r => `<tr class="${r.berjalan ? 'sorot' : ''}"><td>${esc(KB.bulanPendek(r.bulan))}</td><td class="r plus">${uang(r.pemasukan)}</td><td class="r minus">${uang(r.pengeluaran)}</td><td class="r">${uang(r.cicilan)}</td><td class="r"><b class="${r.saldoAkhir < 0 ? 'minus' : ''}">${uang(r.saldoAkhir)}</b></td></tr>`).join('')}
           </tbody></table></div>
           <div class="list hp-saja">${m.proy.slice(0, 4).map(r => `<div class="trow" style="min-height:52px${r.berjalan ? ';background:var(--teal-bg)' : ''}"><div class="t"><b>${esc(KB.bulanPendek(r.bulan))}${r.berjalan ? ' · berjalan' : ''}</b><small>Masuk ${KB.rpPendek(r.pemasukan)} · keluar ${KB.rpPendek(r.pengeluaran)} · cicilan ${KB.rpPendek(r.cicilan)}</small></div><div class="n ${r.saldoAkhir < 0 ? 'minus' : ''}">${uang(r.saldoAkhir)}<small>saldo akhir</small></div></div>`).join('')}</div>
-          ${p0.tunggakan ? `<div class="card-f"><span class="pill bad">${ic('warning', 's16')}Termasuk tunggakan ${KB.rp(p0.tunggakan)}</span></div>` : ''}</div>
-        <div class="card"><div class="card-h">${ic('receipt_long', 's18')}<h2>Transaksi terakhir</h2><span class="sp"></span><a href="#/riwayat" class="sub">Riwayat ${ic('chevron_right', 's16')}</a></div>
-          <div class="list">${terbaru.length ? terbaru.map(x => rowTx(x, { aksi: false })).join('') : kosong('receipt_long', 'Belum ada transaksi', 'Mulai catat pemasukan atau pengeluaran.')}</div></div>
-      </div>
-      <div class="grid g2 mt16">
-        <div class="card"><div class="card-h">${ic('bar_chart', 's18')}<h2>Arus kas 6 bulan</h2><span class="sp"></span><div class="legend"><span><i class="dot" style="background:#17B26A"></i>Masuk</span><span><i class="dot" style="background:#F04438"></i>Keluar</span></div></div><div class="card-b">${grafikBatang(enamBulan)}</div></div>
-        <div class="card"><div class="card-h">${ic('donut_large', 's18')}<h2>Pengeluaran terbesar bulan ini</h2></div><div class="card-b">${katTop.length ? `<div class="bars">${katTop.map(k => { const mt = katMeta('Pengeluaran', k[0]); return `<div class="bar-r"><span class="row" style="min-width:0">${ic(mt.ikon, 's18')}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k[0])}</span></span><span class="b"><i style="width:${Math.round(k[1] / katTot * 100)}%;background:${mt.warna}"></i></span>${uang(k[1])}</div>`; }).join('')}</div>` : kosong('pie_chart', 'Belum ada pengeluaran bulan ini')}</div></div>
-      </div>`;
+          ${p0.tunggakan ? `<div class="card-f"><span class="pill bad">${ic('warning', 's16')}Termasuk tunggakan ${KB.rp(p0.tunggakan)}</span></div>` : ''}</div>`,
+        terakhir: `<div class="card"><div class="card-h">${ic('receipt_long', 's18')}<h2>Transaksi terakhir</h2><span class="sp"></span><a href="#/riwayat" class="sub">Riwayat ${ic('chevron_right', 's16')}</a></div>
+          <div class="list">${terbaru.length ? terbaru.map(x => rowTx(x, { aksi: false })).join('') : kosong('receipt_long', 'Belum ada transaksi', 'Mulai catat pemasukan atau pengeluaran.')}</div></div>`,
+        arus: `<div class="card"><div class="card-h">${ic('bar_chart', 's18')}<h2>Arus kas 6 bulan</h2><span class="sp"></span><div class="legend"><span><i class="dot" style="background:#17B26A"></i>Masuk</span><span><i class="dot" style="background:#F04438"></i>Keluar</span></div></div><div class="card-b">${grafikBatang(enamBulan)}</div></div>`,
+        kategori: `<div class="card"><div class="card-h">${ic('donut_large', 's18')}<h2>Pengeluaran terbesar bulan ini</h2></div><div class="card-b">${katTop.length ? `<div class="bars">${katTop.map(k => { const mt = katMeta('Pengeluaran', k[0]); return `<div class="bar-r"><span class="row" style="min-width:0">${ic(mt.ikon, 's18')}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k[0])}</span></span><span class="b"><i style="width:${Math.round(k[1] / katTot * 100)}%;background:${mt.warna}"></i></span>${uang(k[1])}</div>`; }).join('')}</div>` : kosong('pie_chart', 'Belum ada pengeluaran bulan ini')}</div></div>`
+      });
   };
+  /** Susun bagian dashboard yang tampil. Pasangan (proyeksi+terakhir, arus+kategori) melebar penuh bila tinggal satu. */
+  function dashSusun(b) {
+    const t = (k) => dashTampil(k) ? b[k] : '';
+    const duo = (kelas, a, z) => a && z ? `<div class="grid ${kelas}">${a}${z}</div>` : (a || z);
+    const isi = [t('kpi'), t('tempo'), duo('g-73', t('proyeksi'), t('terakhir')), duo('g2', t('arus'), t('kategori'))].filter(Boolean);
+    const atur = UI.dashAtur ? `<div class="card dash-atur"><div class="card-h">${ic('tune', 's18')}<h2>Atur tampilan dashboard</h2><span class="sp"></span>${dashSembunyi().length ? btn('dash-semua', 'Tampilkan semua', 'visibility', 'ghost sm') : ''}${btn('dash-atur', 'Selesai', 'check', 'sm')}</div>${htmlDashAtur()}</div>` : '';
+    if (!isi.length) isi.push(`<div class="card">${kosong('visibility_off', 'Semua bagian dashboard disembunyikan', 'Tampilkan lagi lewat tombol Atur tampilan atau Pengaturan → Bagian dashboard.', UI.dashAtur ? '' : btn('dash-atur', 'Atur tampilan', 'tune', 'pri mt8'))}</div>`);
+    return `<div class="dash-blok">${atur}${isi.join('')}</div>`;
+  }
 
   /* ---------- Pemasukan / Pengeluaran ---------- */
   function viewBuku(jenis) {
@@ -770,6 +790,10 @@
             <div class="row"><button class="btn pri sm">Simpan tampilan</button></div></form>
           <div class="set-row" style="border-top:1px solid var(--border)"><div class="t"><b>Mode gelap</b><small>Hanya di perangkat ini.</small></div><label class="switch"><input type="checkbox" data-act="tema" ${S.tema === 'gelap' ? 'checked' : ''} aria-label="Mode gelap"><span></span></label></div>
           <div class="set-row"><div class="t"><b>Samarkan nominal</b><small>Tombol mata di bilah atas. Arahkan kursor untuk melihat.</small></div><label class="switch"><input type="checkbox" data-act="privasi-set" ${S.privasi ? 'checked' : ''} aria-label="Samarkan nominal"><span></span></label></div></div>
+
+        <div class="card"><div class="card-h">${ic('space_dashboard', 's18')}<h2>Bagian dashboard</h2><span class="sp"></span>${dashSembunyi().length ? btn('dash-semua', 'Tampilkan semua', 'visibility', 'ghost sm') : ''}</div>
+          <div class="card-b" style="padding-bottom:4px"><p class="sub">Pilih bagian yang tampil di halaman Dashboard. Bisa juga lewat tombol <b>Atur tampilan</b> di Dashboard. Berlaku di semua perangkat.</p></div>
+          ${htmlDashAtur()}</div>
 
         <div class="card"><div class="card-h">${ic('menu', 's18')}<h2>Menu admin</h2><span class="sp"></span>${menuSembunyi().length ? btn('menu-semua', 'Tampilkan semua', 'visibility', 'ghost sm') : ''}</div>
           <div class="card-b" style="padding-bottom:4px"><p class="sub">Sembunyikan menu yang jarang dipakai dari menu samping, navigasi bawah, dan daftar Menu. Data tidak dihapus dan tetap dihitung. Berlaku di semua perangkat.</p></div>
@@ -1322,6 +1346,14 @@
       antre({ act: 'set', kunci: 'menu_sembunyi', nilai: urut.join(',') });
       const m = MENU_DATAR.find(x => x[0] === k); KB.toast('Menu ' + m[1] + (el.checked ? ' ditampilkan.' : ' disembunyikan.'));
     },
+    'dash-atur': () => { UI.dashAtur = !UI.dashAtur; render(); },
+    'dash-tampil': (el) => {
+      const k = el.dataset.k, sem = dashSembunyi().filter(x => x !== k);
+      if (!el.checked) sem.push(k);
+      antre({ act: 'set', kunci: 'dash_sembunyi', nilai: DASH.map(d => d[0]).filter(x => sem.indexOf(x) > -1).join(',') });
+      const d = DASH.find(x => x[0] === k); KB.toast(d[1] + (el.checked ? ' ditampilkan.' : ' disembunyikan.'));
+    },
+    'dash-semua': () => { antre({ act: 'set', kunci: 'dash_sembunyi', nilai: '' }); KB.toast('Semua bagian dashboard ditampilkan.'); },
     'menu-semua': () => { antre({ act: 'set', kunci: 'menu_sembunyi', nilai: '' }); KB.toast('Semua menu ditampilkan.'); },
     'publik-aktif': (el) => { antre({ act: 'set', kunci: 'publik_aktif', nilai: el.checked ? 'on' : 'off' }); KB.toast(el.checked ? 'Halaman publik dinyalakan.' : 'Halaman publik dimatikan.'); },
     keluar: () => keluar(),
