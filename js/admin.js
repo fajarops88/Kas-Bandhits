@@ -25,6 +25,7 @@
     ['Utama', [['dashboard', 'Dashboard', 'space_dashboard']]],
     ['Transaksi', [['pemasukan', 'Pemasukan', 'south_west'], ['pengeluaran', 'Pengeluaran', 'north_east'], ['pinjaman', 'Pinjaman', 'account_balance'], ['berulang', 'Berulang', 'event_repeat']]],
     ['Jadwal', [['pengingat', 'Pengingat', 'notifications'], ['kalender', 'Kalender', 'calendar_month']]],
+    ['Rencana', [['keinginan', 'Keinginan', 'volunteer_activism']]],
     ['Analisis', [['riwayat', 'Riwayat', 'history'], ['laporan', 'Laporan', 'summarize'], ['proyeksi', 'Proyeksi', 'query_stats']]],
     ['Sistem', [['pengaturan', 'Pengaturan', 'settings']]]
   ];
@@ -39,7 +40,7 @@
   const UI = { view: 'dashboard', shell: false };
   let _uidT = 0;
   function uid(p) { let t = Date.now(); if (t <= _uidT) t = _uidT + 1; _uidT = t; return p + '-' + t + '-' + (1000 + Math.floor(Math.random() * 9000)); }
-  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '' } }; }
+  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '' } }; }
   function normal(d) {
     const o = dataKosong();
     if (!d) return o;
@@ -1009,6 +1010,120 @@
     tutupDrawer(); KB.toast('Transaksi berulang disimpan.');
   };
 
+  /* ---------- Keinginan & hajatan (dana konseptual, terpisah dari kas) ---------- */
+  const PRIO = [['Tinggi', 'bad', 'priority_high'], ['Sedang', 'warn', 'drag_handle'], ['Rendah', 'info', 'low_priority']];
+  const kgUrut = (a, b) => (Number(a.urutan) || 0) - (Number(b.urutan) || 0) || (a.id > b.id ? 1 : -1);
+  const kgGrup = (prio) => S.data.keinginan.filter(x => x.status !== 'Selesai' && x.prioritas === prio).sort(kgUrut);
+  const kgUrutAkhir = (prio, kecuali) => kgGrup(prio).filter(x => x.id !== kecuali).reduce((m, x) => Math.max(m, Number(x.urutan) || 0), 0) + 1;
+  /** Pindahkan satu butir ke posisi baru di grupnya. Cukup SATU penyimpanan: urutan diberi nilai di antara kedua tetangga. */
+  function kgPindah(id, keIndeks) {
+    const x = cari(S.data.keinginan, id); if (!x) return;
+    const lain = kgGrup(x.prioritas).filter(y => y.id !== id);
+    keIndeks = Math.max(0, Math.min(lain.length, keIndeks));
+    const a = lain[keIndeks - 1], b = lain[keIndeks];
+    const ua = a ? Number(a.urutan) || 0 : null, ub = b ? Number(b.urutan) || 0 : null;
+    let u = ua === null && ub === null ? 1 : ua === null ? ub - 1 : ub === null ? ua + 1 : (ua + ub) / 2;
+    if ((ua !== null && u <= ua) || (ub !== null && u >= ub)) {             // celah habis / nilai kembar → nomori ulang grup
+      lain.splice(keIndeks, 0, x);
+      lain.forEach((y, j) => { if (Number(y.urutan) !== j + 1) antre({ act: 'simpan', tabel: 'keinginan', baru: false, rec: Object.assign({}, y, { urutan: j + 1 }) }); });
+      return;
+    }
+    if (u !== Number(x.urutan)) antre({ act: 'simpan', tabel: 'keinginan', baru: false, rec: Object.assign({}, x, { urutan: u }) });
+  }
+  function kgGeser(id, arah) {
+    const x = cari(S.data.keinginan, id); if (!x) return;
+    const i = kgGrup(x.prioritas).findIndex(y => y.id === id);
+    kgPindah(id, i + arah);
+  }
+  VIEW.keinginan = function () {
+    const st = UI.kg = UI.kg || { tab: 'aktif' };
+    const aktif = S.data.keinginan.filter(x => x.status !== 'Selesai'), selesai = S.data.keinginan.filter(x => x.status === 'Selesai');
+    const total = (arr) => arr.reduce((s, x) => s + Number(x.dana || 0), 0);
+    const baris = (x, i, n) => `<div class="trow kg ${x._p ? 'pending' : ''}" data-kg="${esc(x.id)}" ${st.tab === 'aktif' ? 'draggable="true"' : ''}>
+        ${st.tab === 'aktif' ? `<span class="pegang" title="Seret untuk mengurutkan" aria-hidden="true">${ic('drag_indicator')}</span><span class="no">${i + 1}</span>` : `<div class="ico" style="background:var(--green-bg);color:var(--green-d)">${ic('task_alt')}</div>`}
+        <div class="t"><b>${esc(x.nama)}</b><small>${x.waktu ? ic('schedule', 's16') + esc(x.waktu) : 'Waktu belum ditentukan'}${st.tab === 'selesai' ? ' · ' + esc(x.prioritas) + (x.selesai ? ' · selesai ' + esc(KB.tglPendek(x.selesai)) : '') : ''}${pend(x)}</small></div>
+        <div class="n">${uang(x.dana)}<small>dibutuhkan</small></div>
+        <div class="aksi">${st.tab === 'aktif' ? btn('kg-geser', '', 'arrow_upward', 'ghost ico sm', `data-id="${esc(x.id)}" data-arah="-1" aria-label="Naikkan" title="Naikkan" ${i === 0 ? 'disabled' : ''}`) + btn('kg-geser', '', 'arrow_downward', 'ghost ico sm', `data-id="${esc(x.id)}" data-arah="1" aria-label="Turunkan" title="Turunkan" ${i === n - 1 ? 'disabled' : ''}`) : ''}
+          ${btn('kg-status', '', st.tab === 'aktif' ? 'task_alt' : 'undo', 'ghost ico sm', `data-id="${esc(x.id)}" aria-label="${st.tab === 'aktif' ? 'Tandai selesai' : 'Aktifkan lagi'}" title="${st.tab === 'aktif' ? 'Tandai selesai' : 'Aktifkan lagi'}"`)}
+          ${btn('ubah-kg', '', 'edit', 'ghost ico sm', `data-id="${esc(x.id)}" aria-label="Ubah" title="Ubah"`)}</div></div>`;
+    let isi;
+    if (st.tab === 'aktif') {
+      isi = aktif.length ? PRIO.map(p => {
+        const g = kgGrup(p[0]);
+        return `<div class="card kg-grup" data-prio="${p[0]}"><div class="card-h"><span class="pill ${p[1]}">${ic(p[2], 's16')}${p[0]}</span><small class="muted">${g.length} butir</small><span class="sp"></span><b class="num">${uang(total(g))}</b>${btn('kg-baru', '', 'add', 'ghost ico sm', `data-prio="${p[0]}" aria-label="Tambah prioritas ${p[0]}" title="Tambah ke grup ini"`)}</div>
+          <div class="list">${g.length ? g.map((x, i) => baris(x, i, g.length)).join('') : `<div class="kg-kosong">Belum ada butir prioritas ${p[0].toLowerCase()}.</div>`}</div></div>`;
+      }).join('') : `<div class="card">${kosong('volunteer_activism', 'Belum ada keinginan atau hajatan', 'Catat rencana besar seperti umrah, renovasi, atau pernikahan beserta perkiraan dananya.', btn('kg-baru', 'Tambah keinginan', 'add', 'pri mt8'))}</div>`;
+    } else {
+      const urutSelesai = selesai.slice().sort((a, b) => (a.selesai < b.selesai ? 1 : a.selesai > b.selesai ? -1 : 0));
+      isi = `<div class="card"><div class="list">${urutSelesai.length ? urutSelesai.map((x, i) => baris(x, i, urutSelesai.length)).join('') : kosong('task_alt', 'Belum ada yang selesai', 'Butir yang ditandai selesai tersimpan di sini sebagai riwayat.')}</div></div>`;
+    }
+    return pageH('Rencana', 'Keinginan & hajatan', 'Daftar kebutuhan besar dan perkiraan dananya. Terpisah dari kas: tidak mengubah saldo, proyeksi, laporan, maupun halaman publik.', btn('kg-baru', 'Tambah keinginan', 'add', 'pri')) +
+      `<div class="grid g4">
+        ${metric('Total dana dibutuhkan', uang(total(aktif)), aktif.length + ' keinginan aktif', 'volunteer_activism')}
+        ${PRIO.map(p => metric('Prioritas ' + p[0].toLowerCase(), uang(total(kgGrup(p[0]))), kgGrup(p[0]).length + ' butir', p[2], p[1] === 'bad' ? 'var(--red-d)' : p[1] === 'warn' ? 'var(--amber-d)' : 'var(--teal-d)')).join('')}
+      </div>
+      <div class="row wrap mt16 mb12"><div class="seg" role="tablist">${[['aktif', 'Aktif (' + aktif.length + ')'], ['selesai', 'Selesai (' + selesai.length + ')']].map(o => `<button type="button" class="${st.tab === o[0] ? 'on' : ''}" data-act="kg-tab" data-v="${o[0]}">${o[1]}</button>`).join('')}</div>
+        <span class="sp"></span>${st.tab === 'aktif' && aktif.length > 1 ? `<small class="muted desk-saja">Seret ${ic('drag_indicator', 's16')} atau pakai panah untuk mengurutkan dalam grup.</small>` : ''}</div>
+      <div class="stack kg-wadah">${isi}</div>`;
+  };
+  // Seret-lepas (mouse) untuk mengurutkan dalam satu grup prioritas. Di layar sentuh pakai tombol panah.
+  AFTER.keinginan = function () {
+    const wadah = $('.kg-wadah'); if (!wadah || wadah._dnd) return; wadah._dnd = true;
+    let seret = null;
+    wadah.addEventListener('dragstart', (e) => {
+      const r = e.target.closest('.trow.kg[draggable]'); if (!r) return;
+      seret = { id: r.dataset.kg, prio: r.closest('.kg-grup').dataset.prio }; r.classList.add('diseret');
+      e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', seret.id); } catch (er) { }
+    });
+    const bersih = () => $$('.trow.kg', wadah).forEach(r => r.classList.remove('diseret', 'jatuh-atas', 'jatuh-bawah'));
+    wadah.addEventListener('dragover', (e) => {
+      if (!seret) return;
+      const r = e.target.closest('.trow.kg'), g = e.target.closest('.kg-grup');
+      if (!g || g.dataset.prio !== seret.prio) return;                       // hanya dalam grup yang sama
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      $$('.trow.kg', wadah).forEach(x => x.classList.remove('jatuh-atas', 'jatuh-bawah'));
+      if (r && r.dataset.kg !== seret.id) { const b = r.getBoundingClientRect(); r.classList.add(e.clientY < b.top + b.height / 2 ? 'jatuh-atas' : 'jatuh-bawah'); }
+    });
+    wadah.addEventListener('drop', (e) => {
+      if (!seret) return; e.preventDefault();
+      const r = e.target.closest('.trow.kg'), g = e.target.closest('.kg-grup');
+      if (g && g.dataset.prio === seret.prio && r && r.dataset.kg !== seret.id) {
+        const lain = kgGrup(seret.prio).filter(y => y.id !== seret.id), j = lain.findIndex(y => y.id === r.dataset.kg);
+        const b = r.getBoundingClientRect();
+        kgPindah(seret.id, e.clientY < b.top + b.height / 2 ? j : j + 1);
+      }
+      seret = null; bersih();
+    });
+    wadah.addEventListener('dragend', () => { seret = null; bersih(); });
+  };
+  function formKeinginan(rec, prioAwal) {
+    const baru = !rec, id = rec ? rec.id : uid('WS'), prio = rec ? rec.prioritas : (prioAwal || 'Sedang'), status = rec ? rec.status : 'Aktif';
+    bukaDrawer(`<form data-form="keinginan" data-id="${esc(id)}" data-baru="${baru ? 1 : 0}" style="display:contents" novalidate>
+      ${kepala(baru ? 'Tambah keinginan / hajatan' : 'Ubah keinginan', `<span class="idk">ID ${esc(id)}</span>`)}
+      <div class="db">
+        <div class="note">${ic('info')}<div>Dana ini <b>konseptual</b>: terpisah dari kas utama dan tidak dilacak saldonya. Saldo, proyeksi, dan laporan tidak berubah.</div></div>
+        <div class="field"><label for="f-nama">Nama keinginan / hajatan</label><input id="f-nama" class="inp" name="nama" maxlength="120" value="${esc(rec ? rec.nama : '')}" placeholder="Contoh: Umrah orang tua" autocomplete="off" ${baru ? 'autofocus' : ''} required></div>
+        ${fieldUang('dana', rec && rec.dana, 'Dana dibutuhkan', false)}
+        <div class="chips">${[[-1000000, '−1 jt'], [-100000, '−100 rb'], [100000, '+100 rb'], [1000000, '+1 jt'], [10000000, '+10 jt']].map(c => `<button type="button" class="chip" data-act="kg-dana" data-v="${c[0]}">${c[1]}</button>`).join('')}</div>
+        <div class="field"><label for="f-waktu">Waktu <small>teks bebas, tidak harus tanggal</small></label><input id="f-waktu" class="inp" name="waktu" maxlength="80" value="${esc(rec ? rec.waktu : '')}" placeholder="Contoh: Lebaran 2027, setelah lunas KPR" autocomplete="off"></div>
+        <div class="field"><span class="flabel">Prioritas</span><div class="seg blk">${PRIO.map(p => `<button type="button" class="${p[0] === prio ? 'on' : ''}" data-act="set-prio" data-v="${p[0]}">${ic(p[2], 's18')}${p[0]}</button>`).join('')}</div><input type="hidden" name="prioritas" value="${prio}"></div>
+        ${baru ? '' : `<label class="row"><span class="switch"><input type="checkbox" name="selesai" ${status === 'Selesai' ? 'checked' : ''}><span></span></span><span>Sudah tercapai (pindah ke riwayat Selesai)</span></label>`}
+        <p class="err" data-err hidden></p>
+      </div>${kaki(baru ? 'Simpan' : 'Simpan perubahan', 'pri', baru ? '' : btn('hapus', 'Hapus', 'delete', 'danger sm', `data-tabel="keinginan" data-id="${esc(id)}"`))}</form>`);
+  }
+  FORM.keinginan = function (f) {
+    const baru = f.dataset.baru === '1', lama = baru ? null : cari(S.data.keinginan, f.dataset.id);
+    const selesai = !!(f.selesai && f.selesai.checked);
+    const rec = { id: f.dataset.id, nama: f.nama.value.trim(), dana: angkaDari(f.dana.value), waktu: f.waktu.value.trim(), prioritas: f.prioritas.value,
+      status: selesai ? 'Selesai' : 'Aktif', selesai: selesai ? (lama && lama.selesai) || KB.hariIni() : '' };
+    if (!rec.nama) return errForm(f, 'Isi nama keinginan atau hajatan.');
+    if (!(rec.dana > 0)) return errForm(f, 'Isi dana yang dibutuhkan.');
+    // Butir baru, pindah grup, atau aktif lagi → taruh di akhir grup; selain itu urutan tetap.
+    rec.urutan = lama && lama.prioritas === rec.prioritas && lama.status === rec.status ? lama.urutan : kgUrutAkhir(rec.prioritas, rec.id);
+    antre({ act: 'simpan', tabel: 'keinginan', rec, baru, cid: baru ? rec.id : uid('OP') });
+    tutupDrawer(); KB.toast(baru ? 'Keinginan disimpan.' : 'Perubahan disimpan.');
+  };
+
   /* ---------- Form kategori ---------- */
   function formKategori(tipe, rec) {
     const baru = !rec, id = rec ? rec.id : uid('KAT'), ikon = rec ? rec.ikon : 'sell', warna = rec ? rec.warna : WARNA_PILIHAN[0];
@@ -1081,16 +1196,31 @@
     'berulang-baru': () => formBerulang(),
     'ubah-berulang': (el) => { const x = cari(S.data.berulang, el.dataset.id); if (x) formBerulang(x); },
     'berulang-aktif': (el) => { const x = cari(S.data.berulang, el.dataset.id); if (x) antre({ act: 'simpan', tabel: 'berulang', baru: false, rec: Object.assign({}, x, { aktif: el.checked }) }); },
+    'kg-baru': (el) => formKeinginan(null, el.dataset.prio),
+    'ubah-kg': (el) => { const x = cari(S.data.keinginan, el.dataset.id); if (x) formKeinginan(x); },
+    'kg-tab': (el) => { UI.kg = Object.assign(UI.kg || {}, { tab: el.dataset.v }); render(); },
+    'kg-geser': (el) => kgGeser(el.dataset.id, Number(el.dataset.arah)),
+    'kg-status': (el) => {
+      const x = cari(S.data.keinginan, el.dataset.id); if (!x) return;
+      const selesai = x.status !== 'Selesai';
+      const rec = Object.assign({}, x, { status: selesai ? 'Selesai' : 'Aktif', selesai: selesai ? KB.hariIni() : '' });
+      if (!selesai) rec.urutan = kgUrutAkhir(x.prioritas);            // aktif lagi → masuk akhir grupnya
+      antre({ act: 'simpan', tabel: 'keinginan', baru: false, rec });
+      KB.toast(selesai ? 'Ditandai selesai. Tersimpan di tab Selesai.' : 'Diaktifkan kembali.');
+    },
+    'set-prio': (el) => { const f = el.closest('form'); f.prioritas.value = el.dataset.v; $$('[data-act="set-prio"]', f).forEach(c => c.classList.toggle('on', c === el)); },
+    'kg-dana': (el) => { const f = el.closest('form'), n = Math.max(0, angkaDari(f.dana.value) + Number(el.dataset.v)); f.dana.value = n ? KB.angka(n) : ''; },
     'kategori-baru': (el) => formKategori(el.dataset.tipe),
     'ubah-kategori': (el) => { const x = cari(S.data.kategori, el.dataset.id); if (x) formKategori(x.tipe, x); },
     hapus: (el) => {
       const t = el.dataset.tabel, id = el.dataset.id, x = cari(S.data[t], id);
       if (!x) return;
-      const judul = { pemasukan: 'Hapus pemasukan?', pengeluaran: 'Hapus pengeluaran?', bayar: 'Batalkan pembayaran?', pinjaman: 'Hapus pinjaman?', berulang: 'Hapus transaksi berulang?', kategori: 'Hapus kategori?' }[t];
+      const judul = { pemasukan: 'Hapus pemasukan?', pengeluaran: 'Hapus pengeluaran?', bayar: 'Batalkan pembayaran?', pinjaman: 'Hapus pinjaman?', berulang: 'Hapus transaksi berulang?', kategori: 'Hapus kategori?', keinginan: 'Hapus keinginan?' }[t];
       const nBayar = t === 'pinjaman' ? S.data.bayar.filter(b => b.pid === id).length : 0;
       const pesan = t === 'pinjaman' ? (nBayar ? `${nBayar} riwayat pembayaran dipindah ke Pengeluaran kategori "Tagihan", jadi saldo kas tidak berubah.` : 'Pinjaman tanpa pembayaran akan dihapus.')
         : t === 'bayar' ? `Pembayaran ${KB.rp(x.nom)} tanggal ${KB.tgl(x.tgl)} dibatalkan dan sisa pinjaman bertambah lagi.`
-          : t === 'kategori' ? 'Transaksi lama yang memakai kategori ini tidak berubah.' : `${x.kat || x.ket || ''} ${KB.rp(x.nom)} pada ${KB.tgl(x.tgl || '')} akan dihapus permanen.`;
+          : t === 'kategori' ? 'Transaksi lama yang memakai kategori ini tidak berubah.'
+          : t === 'keinginan' ? `"${x.nama}" (${KB.rp(x.dana)}) dihapus permanen. Untuk menyimpannya sebagai riwayat, pakai Tandai selesai.` : `${x.kat || x.ket || ''} ${KB.rp(x.nom)} pada ${KB.tgl(x.tgl || '')} akan dihapus permanen.`;
       konfirmasi(judul, pesan, t === 'bayar' ? 'Batalkan pembayaran' : 'Hapus', true).then(ok => {
         tutupDrawer(true);
         if (ok) { antre({ act: 'hapus', tabel: t, id, cid: 'hapus:' + t + ':' + id }); KB.toast(t === 'bayar' ? 'Pembayaran dibatalkan.' : 'Dihapus.'); }
