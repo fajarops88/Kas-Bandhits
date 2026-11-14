@@ -14,6 +14,7 @@
   // Buka/tutup per minggu. Bawaan: minggu berjalan & minggu yang punya cicilan mendesak terbuka.
   // Pilihan pengguna diingat per bulan (bulan berganti → kembali ke bawaan).
   var mgPilih = KB.ls.get('kb_pub_mg', null);
+  var kgSelesaiBuka = !!KB.ls.get('kb_pub_kg', false);   // daftar "sudah tercapai" tertutup bawaan
   var MAKS_TERBARU = 5, DEKAT = 7;
 
   /** Selisih hari kalender a → b (format YYYY-MM-DD). */
@@ -110,6 +111,27 @@
           '<td class="r">' + uang(r.saldoAwal) + '</td><td class="r plus">' + uang(r.pemasukan) + '</td><td class="r minus">' + uang(r.pengeluaran) + '</td>' +
           '<td class="r">' + uang(r.cicilan) + '</td><td class="r"><b class="' + (r.saldoAkhir < 0 ? 'minus' : '') + '">' + uang(r.saldoAkhir) + '</b></td></tr>';
       }).join('') + '</tbody></table></div></div></section>';
+    // 5b. Keinginan & hajatan — hanya dilihat (tanpa tombol ubah/geser/hapus)
+    var kg = s.keinginan, PR = [['Tinggi', 'bad', 'priority_high'], ['Sedang', 'warn', 'drag_handle'], ['Rendah', 'info', 'low_priority']];
+    var nAktif = kg ? PR.reduce(function (t, p) { return t + ((kg.aktif && kg.aktif[p[0]]) || []).length; }, 0) : 0;
+    if (kg && (nAktif || kg.jmlSelesai)) {
+      html += '<section><div class="sec-h"><div class="t"><h2>Keinginan &amp; hajatan</h2><p>Rencana dana, terpisah dari kas · urut sesuai prioritas</p></div>' +
+        '<div class="aksi"><span class="pill info">' + ic('volunteer_activism', 's16') + nAktif + ' rencana · ' + KB.rp(kg.total) + '</span></div></div>' +
+        '<div class="kg-pub">' + PR.filter(function (p) { return (kg.aktif[p[0]] || []).length; }).map(function (p) {
+          var g = kg.aktif[p[0]], sub = g.reduce(function (t, x) { return t + x.dana; }, 0);
+          return '<div class="card kgp"><div class="row kgp-h"><span class="pill ' + p[1] + '">' + ic(p[2], 's16') + 'Prioritas ' + p[0].toLowerCase() + '</span><span class="sp"></span><b>' + uang(sub) + '</b></div>' +
+            g.map(function (x, i) {
+              return '<div class="kgp-it"><span class="no">' + (i + 1) + '</span><div class="t"><b>' + esc(x.nama) + '</b><small>' + (x.waktu ? esc(x.waktu) : 'Waktu belum ditentukan') + '</small></div>' + uang(x.dana) + '</div>';
+            }).join('') + '</div>';
+        }).join('') + '</div>' +
+        (kg.jmlSelesai ? '<div class="card kgp-done mt12"><div class="kgp-dh" id="kgTog" role="button" tabindex="0" aria-expanded="' + kgSelesaiBuka + '" aria-controls="kgDone">' +
+          ic('task_alt') + '<b>' + kg.jmlSelesai + ' keinginan sudah tercapai</b><span class="sp"></span><span class="panah">' + ic('expand_more') + '</span></div>' +
+          '<div id="kgDone"' + (kgSelesaiBuka ? '' : ' hidden') + '>' + kg.selesai.map(function (x) {
+            return '<div class="kgp-it"><span class="no ok">' + ic('check', 's16') + '</span><div class="t"><b>' + esc(x.nama) + '</b><small>' + (x.selesai ? 'Tercapai ' + esc(KB.tglPendek(x.selesai)) : 'Tercapai') + '</small></div>' + uang(x.dana) + '</div>';
+          }).join('') + (kg.jmlSelesai > kg.selesai.length ? '<small class="muted kgp-lain">dan ' + (kg.jmlSelesai - kg.selesai.length) + ' lainnya</small>' : '') + '</div></div>' : '') +
+        '</section>';
+    }
+
     // 6. Transaksi terbaru (maks. 5)
     var terbaru = (s.terbaru || []).slice(0, MAKS_TERBARU);
     html += '<section><div class="sec-h"><div class="t"><h2>Transaksi terbaru</h2><p>' + terbaru.length + ' catatan terakhir</p></div></div><div class="card list">' +
@@ -131,9 +153,19 @@
     kartu.classList.toggle('desak', !buka && !!kartu.querySelector('.it.dekat, .it.telat'));
     if (mgPilih) { mgPilih.buka[i] = buka; KB.ls.set('kb_pub_mg', mgPilih); }
   }
-  root.addEventListener('click', function (e) { var h = e.target.closest('.mg-h'); if (h) toggleMinggu(h); });
+  function toggleSelesai() {
+    var t = document.getElementById('kgTog'), isi = document.getElementById('kgDone'); if (!t || !isi) return;
+    kgSelesaiBuka = !kgSelesaiBuka; KB.ls.set('kb_pub_kg', kgSelesaiBuka);
+    t.setAttribute('aria-expanded', String(kgSelesaiBuka)); isi.hidden = !kgSelesaiBuka;
+  }
+  root.addEventListener('click', function (e) {
+    var h = e.target.closest('.mg-h'); if (h) return toggleMinggu(h);
+    if (e.target.closest('#kgTog')) toggleSelesai();
+  });
   root.addEventListener('keydown', function (e) {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('mg-h')) { e.preventDefault(); toggleMinggu(e.target); }
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.classList && e.target.classList.contains('mg-h')) { e.preventDefault(); toggleMinggu(e.target); }
+    else if (e.target.id === 'kgTog') { e.preventDefault(); toggleSelesai(); }
   });
 
   var Hari = { mingguKe: function (t) { var d = +t.slice(8, 10); return d <= 7 ? 0 : d <= 14 ? 1 : d <= 21 ? 2 : 3; } };
