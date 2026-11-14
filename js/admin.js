@@ -30,6 +30,23 @@
     ['Sistem', [['pengaturan', 'Pengaturan', 'settings']]]
   ];
   const MENU_DATAR = MENU.reduce((a, g) => a.concat(g[1]), []);
+  const MENU_TETAP = ['dashboard', 'pengaturan'];                 // tidak bisa disembunyikan
+  const LABEL_BNAV = { pemasukan: 'Masuk', pengeluaran: 'Keluar' };
+  /** Menu yang disembunyikan lewat Pengaturan → Menu admin (tersimpan di server, berlaku di semua perangkat). */
+  const menuSembunyi = () => String((S.data && S.data.set && S.data.set.menu_sembunyi) || '').split(',').filter(x => x && MENU_TETAP.indexOf(x) < 0);
+  const menuTampil = (k) => menuSembunyi().indexOf(k) < 0;
+  /** Isi navigasi bawah HP: Dashboard + 3 menu tampil pertama (prioritas Pemasukan, Pengeluaran, Pinjaman) + tombol Menu. */
+  function slotBnav() {
+    const urut = ['pemasukan', 'pengeluaran', 'pinjaman'].concat(MENU_DATAR.map(m => m[0]).filter(k => ['dashboard', 'pemasukan', 'pengeluaran', 'pinjaman', 'pengaturan'].indexOf(k) < 0));
+    return ['dashboard'].concat(urut.filter(menuTampil).slice(0, 3));
+  }
+  function htmlNav() {
+    return MENU.map(g => { const isi = g[1].filter(m => menuTampil(m[0])); return isi.length ? `<div class="grp">${g[0]}</div>` + isi.map(m => `<a href="#/${m[0]}" data-nav="${m[0]}">${ic(m[2])}<span>${m[1]}</span>${m[0] === 'pengingat' ? '<span class="badge" data-badge hidden></span>' : ''}</a>`).join('') : ''; }).join('');
+  }
+  function htmlBnav() {
+    return slotBnav().map(k => { const m = MENU_DATAR.find(x => x[0] === k); return `<a href="#/${k}" data-nav="${k}">${ic(m[2])}${LABEL_BNAV[k] || m[1]}</a>`; }).join('') +
+      `<a href="#" data-act="menu" data-nav="__menu">${ic('apps')}Menu<span class="badge" data-badge hidden></span></a>`;
+  }
 
   /* ===================== STATE ===================== */
   const S = {
@@ -40,7 +57,7 @@
   const UI = { view: 'dashboard', shell: false };
   let _uidT = 0;
   function uid(p) { let t = Date.now(); if (t <= _uidT) t = _uidT + 1; _uidT = t; return p + '-' + t + '-' + (1000 + Math.floor(Math.random() * 9000)); }
-  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on' } }; }
+  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '' } }; }
   function normal(d) {
     const o = dataKosong();
     if (!d) return o;
@@ -298,7 +315,7 @@
   /* ===================== KERANGKA (shell) ===================== */
   function bangunShell() {
     UI.shell = true;
-    const nav = MENU.map(g => `<div class="grp">${g[0]}</div>` + g[1].map(m => `<a href="#/${m[0]}" data-nav="${m[0]}">${ic(m[2])}<span>${m[1]}</span>${m[0] === 'pengingat' ? '<span class="badge" data-badge hidden></span>' : ''}</a>`).join('')).join('');
+    const nav = htmlNav(); UI.navKunci = menuSembunyi().join(',');
     document.body.innerHTML = `<div class="app">
       <aside class="sidebar" aria-label="Navigasi utama">
         <div class="brand"><img data-logo src="assets/logo.svg" alt=""><div><b data-nama>Kas Bandhits</b><small>Finance Core</small></div></div>
@@ -315,20 +332,19 @@
         </header>
         <main class="view" id="view" tabindex="-1"></main>
       </div>
-      <nav class="bnav" aria-label="Navigasi bawah">
-        <a href="#/dashboard" data-nav="dashboard">${ic('space_dashboard')}Dashboard</a>
-        <a href="#/pemasukan" data-nav="pemasukan">${ic('south_west')}Masuk</a>
-        <a href="#/pengeluaran" data-nav="pengeluaran">${ic('north_east')}Keluar</a>
-        <a href="#/pinjaman" data-nav="pinjaman">${ic('account_balance')}Pinjaman</a>
-        <a href="#" data-act="menu" data-nav="__menu">${ic('apps')}Menu<span class="badge" data-badge hidden></span></a>
-      </nav></div>`;
+      <nav class="bnav" aria-label="Navigasi bawah">${htmlBnav()}</nav></div>`;
     document.body.classList.toggle('privasi', !!S.privasi);
     bacaHash();
   }
   function aturShell() {
     if (!UI.shell) return;
     const m = MENU_DATAR.find(x => x[0] === UI.view) || MENU_DATAR[0];
-    const lain = ['dashboard', 'pemasukan', 'pengeluaran', 'pinjaman'];
+    const kunciNav = menuSembunyi().join(',');
+    if (kunciNav !== UI.navKunci) {                       // pengaturan menu berubah → susun ulang navigasi
+      UI.navKunci = kunciNav;
+      const nv = $('.sidebar .nav'), bn = $('.bnav'); if (nv) nv.innerHTML = htmlNav(); if (bn) bn.innerHTML = htmlBnav();
+    }
+    const lain = slotBnav();
     $$('[data-nav]').forEach(a => a.classList.toggle('aktif', a.dataset.nav === UI.view || (a.dataset.nav === '__menu' && lain.indexOf(UI.view) < 0)));
     $('[data-judul]').textContent = m[1];
     const set = S.data.set;
@@ -744,7 +760,7 @@
           <div class="set-row"><div class="t"><b>Keluar</b><small>Data di perangkat ini dihapus.</small></div>${btn('keluar', 'Keluar', 'logout', 'danger sm')}</div></div>
 
         <div class="card"><div class="card-h">${ic('public', 's18')}<h2>Halaman publik</h2><span class="sp"></span><label class="switch"><input type="checkbox" data-act="publik-aktif" ${set.publik_aktif !== 'off' ? 'checked' : ''} aria-label="Halaman publik aktif"><span></span></label></div>
-          <div class="card-b stack" style="gap:10px"><p class="sub">Tanpa login, siapa pun yang tahu alamatnya dapat melihat: saldo kas, pemasukan & pengeluaran bulan berjalan, pengingat jatuh tempo per minggu (termasuk nama pemberi pinjaman), proyeksi 3 bulan, dan 10 transaksi terbaru beserta keterangannya.</p>
+          <div class="card-b stack" style="gap:10px"><p class="sub">Tanpa login, siapa pun yang tahu alamatnya dapat melihat: saldo kas, pemasukan & pengeluaran bulan berjalan, pengingat jatuh tempo per minggu (termasuk nama pemberi pinjaman), proyeksi 5 bulan, 5 transaksi terbaru beserta keterangannya, dan keinginan &amp; hajatan yang Anda pilih tampil.</p>
           <div class="kode">${esc(publikUrl)}</div><div class="row">${btn('salin', 'Salin', 'content_copy', 'sm', `data-teks="${esc(publikUrl)}"`)}<a class="btn sm" href="./" target="_blank" rel="noopener">${ic('open_in_new')}Buka</a></div></div></div>
 
         <div class="card"><div class="card-h">${ic('palette', 's18')}<h2>Tampilan</h2></div>
@@ -754,6 +770,14 @@
             <div class="row"><button class="btn pri sm">Simpan tampilan</button></div></form>
           <div class="set-row" style="border-top:1px solid var(--border)"><div class="t"><b>Mode gelap</b><small>Hanya di perangkat ini.</small></div><label class="switch"><input type="checkbox" data-act="tema" ${S.tema === 'gelap' ? 'checked' : ''} aria-label="Mode gelap"><span></span></label></div>
           <div class="set-row"><div class="t"><b>Samarkan nominal</b><small>Tombol mata di bilah atas. Arahkan kursor untuk melihat.</small></div><label class="switch"><input type="checkbox" data-act="privasi-set" ${S.privasi ? 'checked' : ''} aria-label="Samarkan nominal"><span></span></label></div></div>
+
+        <div class="card"><div class="card-h">${ic('menu', 's18')}<h2>Menu admin</h2><span class="sp"></span>${menuSembunyi().length ? btn('menu-semua', 'Tampilkan semua', 'visibility', 'ghost sm') : ''}</div>
+          <div class="card-b" style="padding-bottom:4px"><p class="sub">Sembunyikan menu yang jarang dipakai dari menu samping, navigasi bawah, dan daftar Menu. Data tidak dihapus dan tetap dihitung. Berlaku di semua perangkat.</p></div>
+          ${MENU.map(g => g[1].map(m => {
+            const tetap = MENU_TETAP.indexOf(m[0]) > -1, on = tetap || menuTampil(m[0]);
+            return `<div class="set-row menu-row ${on ? '' : 'mati'}"><div class="t"><b>${ic(m[2], 's18')}${m[1]}</b><small>${g[0]}${tetap ? ' · selalu tampil' : on ? '' : ' · disembunyikan'}</small></div>
+              <label class="switch"><input type="checkbox" data-act="menu-tampil" data-menu="${m[0]}" ${on ? 'checked' : ''} ${tetap ? 'disabled' : ''} aria-label="Tampilkan menu ${m[1]}"><span></span></label></div>`;
+          }).join('')).join('')}</div>
 
         <div class="card"><div class="card-h">${ic('install_mobile', 's18')}<h2>Aplikasi</h2></div>
           <div class="set-row"><div class="t"><b>Pasang di HP / laptop</b><small>${KB.mandiri() ? 'Sudah berjalan sebagai aplikasi.' : KB.pasang.siap ? 'Buka seperti aplikasi, tanpa bilah alamat.' : KB.ios() ? 'Safari: ketuk Bagikan → Tambahkan ke Layar Utama.' : 'Gunakan menu browser → Instal aplikasi.'}</small></div>${KB.pasang.siap ? btn('pasang', 'Pasang', 'download', 'pri sm') : ''}</div>
@@ -1190,7 +1214,7 @@
     tutup: () => { if (_konfirm) { const k = _konfirm; _konfirm = null; tutupDrawer(); return k(false); } tutupDrawer(); },
     menu: (el, e) => {
       e.preventDefault();
-      bukaDrawer(`${kepala('Menu')}<div class="db"><div class="menu-grid">${MENU_DATAR.map(m => `<a href="#/${m[0]}" class="${UI.view === m[0] ? 'aktif' : ''}">${ic(m[2])}${m[1]}</a>`).join('')}</div>
+      bukaDrawer(`${kepala('Menu')}<div class="db"><div class="menu-grid">${MENU_DATAR.filter(m => menuTampil(m[0])).map(m => `<a href="#/${m[0]}" class="${UI.view === m[0] ? 'aktif' : ''}">${ic(m[2])}${m[1]}</a>`).join('')}</div>
         <div class="row mt12">${btn('keluar', 'Keluar', 'logout', 'danger sm')}<span class="sp"></span><span class="sub">${esc(S.sesi ? S.sesi.email : '')}</span></div></div>`);
     },
     'tambah-cepat': () => bukaDrawer(`${kepala('Catat transaksi')}<div class="db"><div class="grid g3" style="gap:8px">
@@ -1291,6 +1315,14 @@
     privasi: () => { S.privasi = !S.privasi; KB.ls.set('kb_privasi', S.privasi); document.body.classList.toggle('privasi', S.privasi); aturShell(); },
     'privasi-set': (el) => { S.privasi = el.checked; KB.ls.set('kb_privasi', S.privasi); document.body.classList.toggle('privasi', S.privasi); aturShell(); },
     tema: (el) => { S.tema = el.checked ? 'gelap' : 'terang'; KB.ls.set('kb_tema', S.tema); terapkanTema(); },
+    'menu-tampil': (el) => {
+      const k = el.dataset.menu, sem = menuSembunyi().filter(x => x !== k);
+      if (!el.checked) sem.push(k);
+      const urut = MENU_DATAR.map(m => m[0]).filter(x => sem.indexOf(x) > -1);
+      antre({ act: 'set', kunci: 'menu_sembunyi', nilai: urut.join(',') });
+      const m = MENU_DATAR.find(x => x[0] === k); KB.toast('Menu ' + m[1] + (el.checked ? ' ditampilkan.' : ' disembunyikan.'));
+    },
+    'menu-semua': () => { antre({ act: 'set', kunci: 'menu_sembunyi', nilai: '' }); KB.toast('Semua menu ditampilkan.'); },
     'publik-aktif': (el) => { antre({ act: 'set', kunci: 'publik_aktif', nilai: el.checked ? 'on' : 'off' }); KB.toast(el.checked ? 'Halaman publik dinyalakan.' : 'Halaman publik dimatikan.'); },
     keluar: () => keluar(),
     pasang: () => KB.pasangSekarang().then(() => render()),
@@ -1329,6 +1361,8 @@
       const n = angkaDari(el.value); el.value = n ? KB.angka(n) : '';
     }
     if (el.dataset.filter && el.type === 'search') { clearTimeout(_cariT); _cariT = setTimeout(() => aturFilter(el), 140); }
+    // Isian alamat migrasi tidak hilang bila halaman Pengaturan digambar ulang (mis. daftar cadangan selesai dimuat).
+    if (el.name === 'sumber' && el.closest('form[data-form="migrasi"]') && UI.set) UI.set.mig.sumber = el.value;
     const f = el.closest('form[data-live]'); if (f && LIVE[f.dataset.live]) LIVE[f.dataset.live](f);
     const err = el.closest('form') && el.closest('form').querySelector('[data-err]'); if (err) err.hidden = true;
   });

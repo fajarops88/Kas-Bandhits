@@ -279,6 +279,11 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 32px; ba
 .kg-sembunyi { color: var(--amber-d); display: inline-flex; align-items: center; gap: 3px; }
 .trow.kg .kg-pub-on { color: var(--teal-d); }
 .kg-saklar .set-row { padding: 12px 16px; }
+.menu-row .t b { display: inline-flex; align-items: center; gap: 8px; }
+.menu-row .t b .ic { color: var(--teal-d); }
+.menu-row.mati .t b { color: var(--muted); }
+.menu-row.mati .t b .ic { color: var(--faint); }
+.menu-row .switch input:disabled + span { opacity: .55; cursor: not-allowed; }
 .kg-saklar .set-row b { display: inline-flex; align-items: center; gap: 6px; }
 .kg-saklar .set-row small .ic { vertical-align: -3px; }
 .kg-kosong { padding: 14px 16px; color: var(--faint); font-size: 12.5px; }
