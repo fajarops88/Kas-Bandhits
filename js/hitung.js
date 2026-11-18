@@ -311,24 +311,27 @@ var Hitung = (function () {
   }
 
   /* ---------------- Snapshot halaman publik (allowlist R8) ---------------- */
+  /** Bagian yang disembunyikan pemilik bernilai null: datanya tidak dihitung dan tidak dikirim. */
   function publik(data, hariIni) {
-    var kini = bk(hariIni), tb = totalBulan(data, kini, hariIni), pg = pengingat(data, hariIni);
+    var kini = bk(hariIni), sem = String((data && data.set && data.set.publik_sembunyi) || '').split(',');
+    function tampil(k) { return sem.indexOf(k) < 0; }
     function bersih(it) { return { pihak: it.pihak, ke: it.ke, dari: it.dari, tgl: it.tgl, nominal: it.nominal, sisa: it.sisa, lunas: it.lunas }; }
+    var tb = tampil('kpi') ? totalBulan(data, kini, hariIni) : null, pg = tampil('tempo') ? pengingat(data, hariIni) : null;
     return {
       hariIni: hariIni,
-      saldoKas: saldoKas(data, hariIni),
-      bulan: { kunci: kini, pemasukan: tb.pemasukan, pengeluaran: tb.pengeluaran, cicilan: tb.cicilan,
+      saldoKas: tampil('saldo') ? saldoKas(data, hariIni) : null,
+      bulan: tb && { kunci: kini, pemasukan: tb.pemasukan, pengeluaran: tb.pengeluaran, cicilan: tb.cicilan,
         jmlPemasukan: tb.jmlPemasukan, jmlPengeluaran: tb.jmlPengeluaran },
-      pengingat: {
+      pengingat: pg && {
         minggu: pg.minggu.map(function (m) { return { ke: m.ke, dari: m.dari, sampai: m.sampai, total: m.total, sisa: m.sisa, items: m.items.map(bersih) }; }),
         tunggakan: pg.tunggakan.map(bersih), totalBulan: pg.totalBulan, sisaBulan: pg.sisaBulan, totalTunggakan: pg.totalTunggakan,
         // Cicilan bulan depan yang jatuh tempo ≤ 7 hari lagi (menjelang akhir bulan), belum lunas
         bulanDepan: pg.tujuhHari.filter(function (it) { return bk(it.tgl) > kini && it.hariLagi >= 0; }).map(bersih)
       },
-      proyeksi: proyeksi(data, hariIni, 5).map(function (r) {
+      proyeksi: tampil('proyeksi') ? proyeksi(data, hariIni, 5).map(function (r) {
         return { bulan: r.bulan, berjalan: r.berjalan, saldoAwal: r.saldoAwal, pemasukan: r.pemasukan, pengeluaran: r.pengeluaran, cicilan: r.cicilan, saldoAkhir: r.saldoAkhir };
-      }),
-      terbaru: terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; }),
+      }) : null,
+      terbaru: tampil('terbaru') ? terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; }) : null,
       keinginan: keinginanPublik(data)
     };
   }

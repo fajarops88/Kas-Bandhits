@@ -57,7 +57,7 @@
   const UI = { view: 'dashboard', shell: false };
   let _uidT = 0;
   function uid(p) { let t = Date.now(); if (t <= _uidT) t = _uidT + 1; _uidT = t; return p + '-' + t + '-' + (1000 + Math.floor(Math.random() * 9000)); }
-  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '', dash_sembunyi: '' } }; }
+  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '', dash_sembunyi: '', publik_sembunyi: '' } }; }
   function normal(d) {
     const o = dataKosong();
     if (!d) return o;
@@ -476,6 +476,22 @@
     return DASH.map(d => `<div class="set-row menu-row ${dashTampil(d[0]) ? '' : 'mati'}"><div class="t"><b>${ic(d[2], 's18')}${d[1]}</b><small>${d[3]}${dashTampil(d[0]) ? '' : ' · disembunyikan'}</small></div>
       <label class="switch"><input type="checkbox" data-act="dash-tampil" data-k="${d[0]}" ${dashTampil(d[0]) ? 'checked' : ''} aria-label="Tampilkan ${d[1]}"><span></span></label></div>`).join('');
   }
+  /* Bagian halaman publik yang bisa ditampilkan/disembunyikan. Disaring di server, jadi data bagian yang
+     disembunyikan tidak terkirim ke pengunjung. Keinginan memakai saklar lamanya sendiri (publik_keinginan). */
+  const PUB = [['saldo', 'Saldo kas', 'account_balance_wallet', 'Kartu saldo utama di paling atas'],
+    ['kpi', 'Pemasukan & pengeluaran bulan ini', 'swap_vert', 'Dua kartu total bulan berjalan'],
+    ['tempo', 'Pengingat jatuh tempo', 'notifications_active', 'Per minggu, awal bulan depan, dan tunggakan · memuat nama pemberi pinjaman'],
+    ['proyeksi', 'Proyeksi 5 bulan', 'query_stats', 'Saldo awal, pemasukan, pengeluaran, dan saldo akhir tiap bulan'],
+    ['keinginan', 'Keinginan & hajatan', 'volunteer_activism', 'Hanya butir yang diizinkan tampil di menu Keinginan'],
+    ['terbaru', 'Transaksi terbaru', 'receipt_long', '5 catatan terakhir beserta keterangannya']];
+  const pubSembunyi = () => String((S.data.set && S.data.set.publik_sembunyi) || '').split(',').filter(Boolean);
+  const pubTampil = (k) => k === 'keinginan' ? S.data.set.publik_keinginan !== 'off' : pubSembunyi().indexOf(k) < 0;
+  function htmlPubAtur() {
+    const bocor = !pubTampil('saldo') && pubTampil('proyeksi');
+    return PUB.map(d => `<div class="set-row menu-row ${pubTampil(d[0]) ? '' : 'mati'}"><div class="t"><b>${ic(d[2], 's18')}${d[1]}</b><small>${d[3]}${pubTampil(d[0]) ? '' : ' · disembunyikan'}</small></div>
+      <label class="switch"><input type="checkbox" data-act="pub-tampil" data-k="${d[0]}" ${pubTampil(d[0]) ? 'checked' : ''} aria-label="Tampilkan ${d[1]} di halaman publik"><span></span></label></div>`).join('') +
+      (bocor ? `<div class="card-b"><div class="note warn">${ic('warning')}<div>Saldo kas disembunyikan, tetapi <b>Proyeksi</b> masih menampilkan saldo awal dan saldo akhir tiap bulan, jadi saldo tetap bisa diperkirakan. Sembunyikan Proyeksi juga bila perlu.</div></div></div>` : '');
+  }
   VIEW.dashboard = function () {
     const m = M(), b = m.bulan, p0 = m.proy[0], lalu = H.totalBulan(S.data, H.geserBulan(m.kini, -1));
     const delta = (a, z) => z ? Math.round((a - z) / z * 100) : null;
@@ -780,8 +796,10 @@
           <div class="set-row"><div class="t"><b>Keluar</b><small>Data di perangkat ini dihapus.</small></div>${btn('keluar', 'Keluar', 'logout', 'danger sm')}</div></div>
 
         <div class="card"><div class="card-h">${ic('public', 's18')}<h2>Halaman publik</h2><span class="sp"></span><label class="switch"><input type="checkbox" data-act="publik-aktif" ${set.publik_aktif !== 'off' ? 'checked' : ''} aria-label="Halaman publik aktif"><span></span></label></div>
-          <div class="card-b stack" style="gap:10px"><p class="sub">Tanpa login, siapa pun yang tahu alamatnya dapat melihat: saldo kas, pemasukan & pengeluaran bulan berjalan, pengingat jatuh tempo per minggu (termasuk nama pemberi pinjaman), proyeksi 5 bulan, 5 transaksi terbaru beserta keterangannya, dan keinginan &amp; hajatan yang Anda pilih tampil.</p>
-          <div class="kode">${esc(publikUrl)}</div><div class="row">${btn('salin', 'Salin', 'content_copy', 'sm', `data-teks="${esc(publikUrl)}"`)}<a class="btn sm" href="./" target="_blank" rel="noopener">${ic('open_in_new')}Buka</a></div></div></div>
+          <div class="card-b stack" style="gap:10px"><p class="sub">Tanpa login, siapa pun yang tahu alamatnya dapat melihat bagian yang Anda nyalakan di bawah. Bagian yang dimatikan tidak dikirim ke pengunjung sama sekali. Berlaku di semua perangkat.</p>
+          <div class="kode">${esc(publikUrl)}</div><div class="row">${btn('salin', 'Salin', 'content_copy', 'sm', `data-teks="${esc(publikUrl)}"`)}<a class="btn sm" href="./" target="_blank" rel="noopener">${ic('open_in_new')}Buka</a></div></div>
+          <div class="card-h" style="border-top:1px solid var(--border)">${ic('tune', 's18')}<h2>Bagian yang tampil</h2><span class="sp"></span>${pubSembunyi().length || !pubTampil('keinginan') ? btn('pub-semua', 'Tampilkan semua', 'visibility', 'ghost sm') : ''}</div>
+          ${htmlPubAtur()}</div>
 
         <div class="card"><div class="card-h">${ic('palette', 's18')}<h2>Tampilan</h2></div>
           <form class="card-b stack" data-form="tampilan" style="gap:12px">
@@ -1352,6 +1370,21 @@
       if (!el.checked) sem.push(k);
       antre({ act: 'set', kunci: 'dash_sembunyi', nilai: DASH.map(d => d[0]).filter(x => sem.indexOf(x) > -1).join(',') });
       const d = DASH.find(x => x[0] === k); KB.toast(d[1] + (el.checked ? ' ditampilkan.' : ' disembunyikan.'));
+    },
+    'pub-tampil': (el) => {
+      const k = el.dataset.k, d = PUB.find(x => x[0] === k);
+      if (k === 'keinginan') antre({ act: 'set', kunci: 'publik_keinginan', nilai: el.checked ? 'on' : 'off' });
+      else {
+        const sem = pubSembunyi().filter(x => x !== k);
+        if (!el.checked) sem.push(k);
+        antre({ act: 'set', kunci: 'publik_sembunyi', nilai: PUB.map(x => x[0]).filter(x => sem.indexOf(x) > -1).join(',') });
+      }
+      KB.toast(d[1] + (el.checked ? ' ditampilkan di halaman publik.' : ' disembunyikan dari halaman publik.'));
+    },
+    'pub-semua': () => {
+      if (pubSembunyi().length) antre({ act: 'set', kunci: 'publik_sembunyi', nilai: '' });
+      if (!pubTampil('keinginan')) antre({ act: 'set', kunci: 'publik_keinginan', nilai: 'on' });
+      KB.toast('Semua bagian halaman publik ditampilkan.');
     },
     'dash-semua': () => { antre({ act: 'set', kunci: 'dash_sembunyi', nilai: '' }); KB.toast('Semua bagian dashboard ditampilkan.'); },
     'menu-semua': () => { antre({ act: 'set', kunci: 'menu_sembunyi', nilai: '' }); KB.toast('Semua menu ditampilkan.'); },
