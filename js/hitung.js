@@ -417,6 +417,8 @@ var Hitung = (function () {
   }
 
   return {
+    // Versi isi modul ini. Kode.gs menolak penulisan bila Hitung.gs lebih lama dari HITUNG_MIN (berkas tertinggal saat update).
+    VERSI: '2.11.0',
     keinginanPublik: keinginanPublik, katTerbesar: katTerbesar,
     pad: pad, num: num, tglValid: tglValid, bulanValid: bulanValid, bk: bk, geserBulan: geserBulan,
     tambahBulan: tambahBulan, tambahHari: tambahHari, selisihHari: selisihHari, hariAkhir: hariAkhir, idWaktu: idWaktu,

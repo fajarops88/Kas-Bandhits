@@ -11,7 +11,10 @@
   var HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
   var KB = window.KB = {
-    VERSI: '2.10.0',   // naikkan setiap ada perubahan frontend (lihat CATATAN-VERSI.md)
+    VERSI: '2.11.0',   // naikkan setiap ada perubahan frontend (lihat CATATAN-VERSI.md)
+    // Backend minimal yang memahami data yang dikirim frontend ini (frekuensi berulang & koreksi Idul Fitri sejak 2.10.0).
+    // Bila backend lebih lama, penyimpanan ditahan di perangkat (tidak dikirim) sampai backend diperbarui.
+    BACKEND_MIN: '2.10.0',
     BULAN: BULAN, BLN: BLN, HARI: HARI,
     siap: !!GAS && !/GANTI|XXXX/.test(GAS)
   };
@@ -62,6 +65,14 @@
     set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
     del: function (k) { try { localStorage.removeItem(k); } catch (e) { } }
   };
+  KB.vServer = KB.ls.get('kb_vserver', '');   // versi backend terakhir yang diketahui (dari kolom v di setiap balasan)
+
+  /** "2.10.0" vs "2.9.3" → 1 / 0 / -1 (per angka). */
+  KB.versiBanding = function (a, b) {
+    var x = String(a || '0').split('.'), y = String(b || '0').split('.');
+    for (var i = 0; i < 3; i++) { var d = (Number(x[i]) || 0) - (Number(y[i]) || 0); if (d) return d > 0 ? 1 : -1; }
+    return 0;
+  };
 
   /* ---------- API ke Apps Script ---------- */
   function galat(pesan, code) { var e = new Error(pesan); e.code = code || 'ERR'; return e; }
@@ -88,6 +99,7 @@
       throw err && err.name === 'AbortError' ? galat('Server tidak merespons dalam 30 detik.', 'TIMEOUT') : galat('Tidak dapat terhubung ke server.', 'NET');
     }).then(function (j) {
       KB.perf.push({ a: action, total: Math.round(performance.now() - t0), server: j && j.ms });
+      if (j && j.v && j.v !== KB.vServer) { KB.vServer = j.v; KB.ls.set('kb_vserver', j.v); }   // versi backend yang menjawab
       if (KB.perf.length > 80) KB.perf.shift();
       if (!j || j.ok !== true) throw galat((j && j.message) || 'Terjadi kesalahan.', (j && j.code) || 'ERR');
       return j;
@@ -106,6 +118,14 @@
   };
   /** Pengukur kinerja: KB.perf di console menampilkan waktu total & waktu server per aksi. */
   KB.perf = [];
+  /** Ringkasan per aksi di console: KB.perfTabel() → jumlah, rata-rata total, rata-rata waktu server, jaringan. */
+  KB.perfTabel = function () {
+    var g = {};
+    KB.perf.forEach(function (p) { var x = g[p.a] = g[p.a] || { n: 0, total: 0, server: 0 }; x.n++; x.total += p.total; x.server += p.server || 0; });
+    var t = {};
+    Object.keys(g).forEach(function (a) { var x = g[a]; t[a] = { kali: x.n, 'total ms': Math.round(x.total / x.n), 'server ms': Math.round(x.server / x.n), 'jaringan ms': Math.round((x.total - x.server) / x.n) }; });
+    if (console.table) console.table(t); return t;
+  };
   /** Bangunkan server Apps Script lebih awal (maks. 1× per 4 menit). */
   KB.hangatkan = function () {
     if (!KB.siap) return;

@@ -142,14 +142,30 @@
     if (op.act === 'hapus') return panggil('rec.hapus', { tabel: op.tabel, id: op.id });
     return panggil('set.simpan', { kunci: op.kunci, nilai: op.nilai });
   }
-  const P = { jalan: false, timer: null, coba: 0 };
+  // tahan: antrean dihentikan sementara (backend lama/berkas tidak serasi, atau galat server berulang) — data tetap di perangkat.
+  const P = { jalan: false, timer: null, coba: 0, cobaErr: 0, tahan: null, cekT: null };
+  const backendLama = () => !!KB.vServer && KB.versiBanding(KB.vServer, KB.BACKEND_MIN) < 0;
+  function tahanAntre(code, message) {
+    P.tahan = { code, message };
+    clearTimeout(P.cekT);
+    if (code !== 'ERR') P.cekT = setTimeout(cekUlangTahan, 60000);   // backend mungkin sudah diperbarui → periksa otomatis
+    renderRingan();
+  }
+  function cekUlangTahan() {
+    clearTimeout(P.cekT); P.cekT = null;
+    const t = P.tahan; P.tahan = null; P.cobaErr = 0;
+    const lanjut = () => { pompa(); renderRingan(); };
+    if (t && t.code === 'BACKEND') sinkron(true).then(lanjut, lanjut); else lanjut();
+  }
   function pompa() {
     if (P.jalan || P.timer || !S.ob.length) return statusSync();
+    if (P.tahan) return statusSync();
+    if (backendLama()) return tahanAntre('BACKEND', 'Backend masih versi ' + KB.vServer + ', aplikasi ini butuh ' + KB.BACKEND_MIN + ' atau lebih baru. Tempel Kode.gs dan Hitung.gs terbaru di Apps Script, lalu Kelola deployment → Edit → Versi baru. Perubahan Anda aman di perangkat dan dikirim otomatis setelah backend diperbarui.');
     if (!sesiValid()) { statusSync(); return mintaLogin(); }
     const op = S.ob[0];
     P.jalan = true; statusSync();
     kirimOp(op).then(j => {
-      P.coba = 0; S.ob.shift(); simpanOb();
+      P.coba = 0; P.cobaErr = 0; S.ob.shift(); simpanOb();
       const r = j.r || {};
       if (op.act === 'simpan') {
         const x = cari(S.data[op.tabel], op.rec.id);
@@ -168,6 +184,8 @@
         if (op.act === 'simpan' && op.baru) { S.data[op.tabel] = S.data[op.tabel].filter(x => x.id !== op.rec.id); S.rev++; render(); }
         return sinkron(true, true);
       }
+      if (e.code === 'VERSI') return tahanAntre('VERSI', e.message);          // berkas backend tidak serasi → tahan, jangan buang
+      if (e.code === 'ERR' && ++P.cobaErr >= 3) return tahanAntre('ERR', e.message);   // galat server berulang → jangan sumbat antrean diam-diam
       P.coba++;                                             // belum pasti → kirim ulang ID yang sama (aman)
       const jeda = [1500, 5000, 15000, 30000, 60000][Math.min(P.coba - 1, 4)];
       if (P.coba === 2) KB.toast('Koneksi bermasalah. Data aman di perangkat dan dikirim otomatis — jangan input ulang.', 'warn');
@@ -364,6 +382,7 @@
     const el = $('[data-sync]'); if (!el) return;
     let kelas = '', teks = 'Tersinkron';
     if (!sesiValid() && UI.shell) { kelas = 'galat'; teks = 'Perlu masuk'; }
+    else if (P.tahan && S.ob.length) { kelas = 'galat'; teks = 'Tertahan (' + S.ob.length + ')'; }
     else if (P.jalan || SK.jalan) { kelas = 'kirim'; teks = S.ob.length ? 'Menyimpan ' + S.ob.length : 'Memeriksa…'; }
     else if (S.ob.length) { kelas = 'tunda'; teks = 'Menunggu kirim (' + S.ob.length + ')'; }
     else if (S.galat) { kelas = 'tunda'; teks = 'Offline'; }
@@ -384,12 +403,23 @@
     const view = $('#view'), fn = VIEW[UI.view] || VIEW.dashboard;
     const ae = document.activeElement, fid = ae && ae.id && view.contains(ae) ? ae.id : null;
     let pos = null; try { pos = fid ? ae.selectionStart : null; } catch (e) { }
-    view.innerHTML = fn();
+    view.innerHTML = htmlTahan() + fn();
     if (fid) { const el = document.getElementById(fid); if (el) { el.focus(); try { if (pos !== null) el.setSelectionRange(pos, pos); } catch (e) { } } }
     if (AFTER[UI.view]) AFTER[UI.view]();
   }
   let _rrT = null;
   function renderRingan() { clearTimeout(_rrT); _rrT = setTimeout(() => { if (!$('.drawer.on')) render(); else { aturShell(); statusSync(); } }, 60); }
+
+  /* Pemberitahuan antrean tertahan, tampil di atas setiap halaman sampai beres. */
+  function htmlTahan() {
+    if (!P.tahan || !S.ob.length) return '';
+    const t = P.tahan, op = S.ob[0], LBL = { pemasukan: 'pemasukan', pengeluaran: 'pengeluaran', pinjaman: 'pinjaman', bayar: 'pembayaran cicilan', berulang: 'transaksi berulang', kategori: 'kategori', keinginan: 'keinginan' };
+    const apa = op.act === 'set' ? 'pengaturan ' + op.kunci : (op.act === 'hapus' ? 'hapus ' : op.baru ? 'tambah ' : 'ubah ') + (LBL[op.tabel] || op.tabel) +
+      (op.rec ? ' "' + (op.rec.ket || op.rec.nama || op.rec.pihak || op.rec.kat || op.rec.id) + '"' : '');
+    return `<div class="note bad mb12 tahan" role="alert">${ic('error')}<div><b>${t.code === 'ERR' ? 'Perubahan tidak bisa disimpan server' : 'Penyimpanan ditahan: backend perlu diperbarui'}</b><br>${esc(t.message)}
+      <br><small>${S.ob.length} perubahan menunggu di perangkat · yang pertama: ${esc(apa)}</small>
+      <div class="row mt8" style="gap:8px">${t.code === 'ERR' ? btn('tahan-coba', 'Coba lagi', 'refresh', 'sm') + btn('tahan-buang', 'Buang perubahan ini', 'delete', 'danger sm') : btn('tahan-cek', 'Periksa lagi', 'refresh', 'sm')}</div></div></div>`;
+  }
 
   /* ===================== POTONGAN TAMPILAN ===================== */
   const pageH = (lbl, judul, sub, aksi) => `<div class="page-h"><div class="t"><span class="lbl">${lbl}</span><h1>${judul}</h1>${sub ? `<p>${sub}</p>` : ''}</div><div class="act">${aksi || ''}</div></div>`;
@@ -862,7 +892,7 @@
         <div class="card"><div class="card-h">${ic('install_mobile', 's18')}<h2>Aplikasi</h2></div>
           <div class="set-row"><div class="t"><b>Pasang di HP / laptop</b><small>${KB.mandiri() ? 'Sudah berjalan sebagai aplikasi.' : KB.pasang.siap ? 'Buka seperti aplikasi, tanpa bilah alamat.' : KB.ios() ? 'Safari: ketuk Bagikan → Tambahkan ke Layar Utama.' : 'Gunakan menu browser → Instal aplikasi.'}</small></div>${KB.pasang.siap ? btn('pasang', 'Pasang', 'download', 'pri sm') : ''}</div>
           <div class="set-row"><div class="t"><b>Segarkan dari Google Sheets</b><small>Pakai setelah mengedit spreadsheet secara langsung. ${S.sinkronT ? 'Terakhir diperiksa ' + KB.jamLalu(new Date(S.sinkronT).toISOString()) : ''} · versi data ${S.ver}${S.ob.length ? ' · ' + S.ob.length + ' antre' : ''}</small></div>${btn('sinkron-penuh', 'Segarkan', 'refresh', 'sm')}</div>
-          <div class="set-row"><div class="t"><b>Versi</b><small>Frontend ${KB.VERSI}</small></div></div></div>
+          <div class="set-row"><div class="t"><b>Versi</b><small data-versi>Frontend ${KB.VERSI} · Backend ${KB.vServer ? esc(KB.vServer) : 'belum diketahui'}</small></div>${backendLama() ? `<span class="pill bad">${ic('warning', 's16')}Backend perlu diperbarui</span>` : ''}</div></div>
       </div><div class="stack">
         <div class="card"><div class="card-h">${ic('category', 's18')}<h2>Kategori</h2><span class="sp"></span><div class="seg">${['Pengeluaran', 'Pemasukan'].map(t => `<button type="button" class="${st.tipe === t ? 'on' : ''}" data-act="set-tipe" data-v="${t}">${t}</button>`).join('')}</div></div>
           <div class="card-b"><div class="kat-grid">${kats.map(k => `<button type="button" class="kat-it" data-act="ubah-kategori" data-id="${esc(k.id)}"><span class="k" style="background:${k.warna}1f;color:${k.warna}">${ic(k.ikon)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(k.nama)}</span></button>`).join('')}
@@ -1455,6 +1485,15 @@
       if (!pubTampil('keinginan')) antre({ act: 'set', kunci: 'publik_keinginan', nilai: 'on' });
       KB.toast('Semua bagian halaman publik ditampilkan.');
     },
+    'tahan-coba': () => { P.tahan = null; P.cobaErr = 0; pompa(); render(); },
+    'tahan-cek': () => cekUlangTahan(),
+    'tahan-buang': () => konfirmasi('Buang perubahan ini?', 'Perubahan yang ditolak server dihapus dari perangkat ini, lalu data diambil ulang dari server. Perubahan lain di antrean tetap dikirim.', 'Buang', true).then(ok => {
+      tutupDrawer(true); if (!ok || !S.ob.length) return;
+      const op = S.ob.shift(); simpanOb(); P.tahan = null; P.cobaErr = 0;
+      if (op.act === 'simpan' && op.baru && S.data[op.tabel]) { S.data[op.tabel] = S.data[op.tabel].filter(x => x.id !== op.rec.id); S.rev++; }
+      KB.toast('Perubahan dibuang.'); render();
+      sinkron(true, true).then(() => { render(); pompa(); }, () => pompa());
+    }),
     'dash-semua': () => { antre({ act: 'set', kunci: 'dash_sembunyi', nilai: '' }); KB.toast('Semua bagian dashboard ditampilkan.'); },
     'menu-semua': () => { antre({ act: 'set', kunci: 'menu_sembunyi', nilai: '' }); KB.toast('Semua menu ditampilkan.'); },
     'publik-aktif': (el) => { antre({ act: 'set', kunci: 'publik_aktif', nilai: el.checked ? 'on' : 'off' }); KB.toast(el.checked ? 'Halaman publik dinyalakan.' : 'Halaman publik dimatikan.'); },
