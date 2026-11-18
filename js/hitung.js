@@ -125,15 +125,51 @@ var Hitung = (function () {
   }
 
   /* ---------------- R11: transaksi berulang ---------------- */
-  function berulangAktif(b, key) {
+  /* Frekuensi: 'Bulanan' (bawaan, juga bila kosong), 'Tahunan' (sekali setahun di bulan `bln`, mis. Gaji 13 di Juni),
+     'Idul Fitri' (sekali per Idul Fitri, `sebelum` hari sebelum hari raya, mis. THR). */
+  var FREK = ['Bulanan', 'Tahunan', 'Idul Fitri'];
+  /* Tanggal 1 Syawal (Idul Fitri) di Indonesia. 2026: Kemenag (sidang isbat). 2027: SKB 3 Menteri libur nasional 2027
+     (tetap menunggu sidang isbat). 2028 dst.: PERKIRAAN kalender Umm al-Qura; tanggal resmi Indonesia bisa ±1 hari,
+     koreksi lewat pengaturan `idul_fitri`. 2033 memuat dua Idul Fitri (1454 H & 1455 H). */
+  var IDUL_FITRI = ['2026-03-21', '2027-03-10', '2028-02-26', '2029-02-14', '2030-02-04', '2031-01-24', '2032-01-14',
+    '2033-01-02', '2033-12-23', '2034-12-12', '2035-12-01', '2036-11-19'];
+  /** Daftar tanggal Idul Fitri yang dipakai: bawaan, lalu tahun yang dikoreksi pemilik (set.idul_fitri) diganti seluruhnya. */
+  function tanggalIdulFitri(data) {
+    var koreksi = String((data && data.set && data.set.idul_fitri) || '').split(',').map(function (x) { return x.trim(); }).filter(tglValid);
+    var thn = {}; koreksi.forEach(function (t) { thn[t.slice(0, 4)] = 1; });
+    var semua = IDUL_FITRI.filter(function (t) { return !thn[t.slice(0, 4)]; }).concat(koreksi);
+    return semua.filter(function (t, i) { return semua.indexOf(t) === i; }).sort();
+  }
+  function frekBerulang(b) { return FREK.indexOf(b && b.frek) > -1 ? b.frek : 'Bulanan'; }
+  /** Status hidup (saklar aktif, rentang mulai–selesai, nominal), tanpa melihat apakah jatuh di bulan `key`. */
+  function berulangHidup(b, key) {
     if (!(b.aktif === true || b.aktif === 'TRUE' || b.aktif === 1 || b.aktif === '1')) return false;
     if (!bulanValid(b.mulai) || key < b.mulai) return false;
     if (b.selesai && bulanValid(b.selesai) && key > b.selesai) return false;
     return num(b.nom) > 0;
   }
-  function tglBerulang(b, key) {
-    var y = +key.slice(0, 4), m = +key.slice(5, 7);
+  /** Tanggal kejadian butir berulang di bulan `key`, atau null bila bulan itu tidak ada kejadian. */
+  function tglBerulang(b, key, data) {
+    var y = +key.slice(0, 4), m = +key.slice(5, 7), f = frekBerulang(b);
+    if (f === 'Idul Fitri') {
+      var geser = Math.min(Math.max(0, Math.floor(num(b.sebelum))), 60), daftar = tanggalIdulFitri(data);
+      for (var i = 0; i < daftar.length; i++) { var t = tambahHari(daftar[i], -geser); if (bk(t) === key) return t; }
+      return null;
+    }
+    if (f === 'Tahunan' && Math.floor(num(b.bln)) !== m) return null;
     return key + '-' + pad(Math.min(Math.max(1, Math.floor(num(b.hari)) || 1), hariAkhir(y, m)));
+  }
+  /** Butir berulang dihitung di bulan `key`: hidup DAN ada kejadian di bulan itu. */
+  function berulangAktif(b, key, data) { return berulangHidup(b, key) && tglBerulang(b, key, data) !== null; }
+  /** Kejadian berikutnya mulai bulan `dariKey` (maks. 3 tahun ke depan), untuk tampilan admin. */
+  function berulangBerikut(b, dariKey, data) {
+    for (var i = 0; i < 40; i++) {
+      var key = geserBulan(dariKey, i);
+      if (b.selesai && bulanValid(b.selesai) && key > b.selesai) return null;
+      if (key < b.mulai) continue;
+      var t = tglBerulang(b, key, data); if (t) return t;
+    }
+    return null;
   }
   /** Butir berulang yang benar-benar menambah proyeksi di bulan `key` (sudah dikurangi yang cocok). */
   function berulangBulan(data, key) {
@@ -143,14 +179,14 @@ var Hitung = (function () {
     };
     var hasil = [];
     (data.berulang || []).forEach(function (b) {
-      if (!berulangAktif(b, key)) return;
+      if (!berulangAktif(b, key, data)) return;
       var daftar = tercatat[b.jenis] || [];
       var idx = -1;
       for (var i = 0; i < daftar.length; i++) {
         if (sama(daftar[i].kat, b.kat) && Math.round(num(daftar[i].nom)) === Math.round(num(b.nom))) { idx = i; break; }
       }
       if (idx > -1) { daftar.splice(idx, 1); return; }          // sudah tercatat → jangan dihitung dua kali
-      hasil.push({ id: b.id, jenis: b.jenis, kat: b.kat, ket: b.ket || '', nom: num(b.nom), tgl: tglBerulang(b, key) });
+      hasil.push({ id: b.id, jenis: b.jenis, kat: b.kat, ket: b.ket || '', nom: num(b.nom), tgl: tglBerulang(b, key, data), frek: frekBerulang(b) });
     });
     return hasil;
   }
@@ -303,8 +339,8 @@ var Hitung = (function () {
       });
     });
     (data.berulang || []).forEach(function (b) {
-      if (!berulangAktif(b, key)) return;
-      var t = tglBerulang(b, key);
+      if (!berulangAktif(b, key, data)) return;
+      var t = tglBerulang(b, key, data);
       add(t, { tipe: 'berulang', id: b.id, jenis: b.jenis, judul: b.ket || b.kat, kat: b.kat, nominal: num(b.nom), tgl: t });
     });
     return ev;
@@ -386,6 +422,8 @@ var Hitung = (function () {
     tambahBulan: tambahBulan, tambahHari: tambahHari, selisihHari: selisihHari, hariAkhir: hariAkhir, idWaktu: idWaktu,
     jadwalPinjaman: jadwalPinjaman, semuaPinjaman: semuaPinjaman, saldoKas: saldoKas, totalBulan: totalBulan,
     berulangAktif: berulangAktif, berulangBulan: berulangBulan, tglBerulang: tglBerulang, proyeksi: proyeksi,
+    FREK: FREK, IDUL_FITRI: IDUL_FITRI, tanggalIdulFitri: tanggalIdulFitri, frekBerulang: frekBerulang,
+    berulangHidup: berulangHidup, berulangBerikut: berulangBerikut,
     pengingat: pengingat, gabung: gabung, terbaru: terbaru, laporan: laporan, kunciPeriode: kunciPeriode,
     kalender: kalender, publik: publik, mingguKe: mingguKe
   };

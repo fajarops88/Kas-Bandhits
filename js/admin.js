@@ -57,7 +57,7 @@
   const UI = { view: 'dashboard', shell: false };
   let _uidT = 0;
   function uid(p) { let t = Date.now(); if (t <= _uidT) t = _uidT + 1; _uidT = t; return p + '-' + t + '-' + (1000 + Math.floor(Math.random() * 9000)); }
-  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '', dash_sembunyi: '', publik_sembunyi: '' } }; }
+  function dataKosong() { return { pemasukan: [], pengeluaran: [], pinjaman: [], bayar: [], berulang: [], kategori: [], keinginan: [], set: { nama_app: 'Kas Bandhits', publik_aktif: 'on', logo_url: '', publik_keinginan: 'on', menu_sembunyi: '', dash_sembunyi: '', publik_sembunyi: '', idul_fitri: '' } }; }
   function normal(d) {
     const o = dataKosong();
     if (!d) return o;
@@ -625,25 +625,59 @@
   };
 
   /* ---------- Transaksi berulang ---------- */
+  /* Teks jadwal satu butir berulang: "tiap tgl 25", "tiap 1 Juni", "H-7 Idul Fitri". */
+  function jadwalBerulang(b) {
+    const f = H.frekBerulang(b);
+    if (f === 'Tahunan') return 'tiap ' + b.hari + ' ' + KB.BULAN[(Number(b.bln) || 1) - 1];
+    if (f === 'Idul Fitri') return Number(b.sebelum) ? 'H-' + b.sebelum + ' Idul Fitri' : 'tiap Idul Fitri';
+    return 'tiap tgl ' + b.hari;
+  }
+  /* Asal tanggal Idul Fitri: koreksi pemilik, ketetapan pemerintah, atau perkiraan bawaan. */
+  function sumberIdulFitri(t) {
+    if (String(S.data.set.idul_fitri || '').split(',').indexOf(t) > -1) return ['koreksi Anda', 'ok'];
+    if (t === '2026-03-21') return ['Kemenag', 'ok'];
+    if (t === '2027-03-10') return ['SKB 3 Menteri, menunggu sidang isbat', 'info'];
+    return ['perkiraan', 'warn'];
+  }
+  /* Templat isi cepat untuk pemasukan sekali setahun. */
+  const ISI_BERULANG = {
+    thr: { jenis: 'Pemasukan', kat: 'Gaji', ket: 'THR', frek: 'Idul Fitri', sebelum: 0, hari: 1 },
+    g13: { jenis: 'Pemasukan', kat: 'Gaji', ket: 'Gaji 13', frek: 'Tahunan', bln: 6, hari: 1 }
+  };
   VIEW.berulang = function () {
-    const m = M(), depan = H.geserBulan(m.kini, 1), list = S.data.berulang.slice().sort((a, b) => (a.jenis > b.jenis ? 1 : -1) || a.hari - b.hari);
-    const aktif = list.filter(b => H.berulangAktif(b, depan));
+    const m = M(), depan = H.geserBulan(m.kini, 1), list = S.data.berulang.slice().sort((a, b) => (a.jenis === b.jenis ? 0 : a.jenis > b.jenis ? 1 : -1) || (H.FREK.indexOf(H.frekBerulang(a)) - H.FREK.indexOf(H.frekBerulang(b))) || a.hari - b.hari);
+    const aktif = list.filter(b => H.frekBerulang(b) === 'Bulanan' && H.berulangAktif(b, depan, S.data));
     const tIn = aktif.filter(b => b.jenis === 'Pemasukan').reduce((s, b) => s + Number(b.nom), 0), tOut = aktif.filter(b => b.jenis === 'Pengeluaran').reduce((s, b) => s + Number(b.nom), 0);
-    return pageH('Proyeksi otomatis', 'Transaksi berulang', 'Gaji, sewa, langganan. Hanya dipakai proyeksi, mulai bulan berikutnya. Saldo kas tidak berubah sampai Anda mencatat transaksinya.', btn('berulang-baru', 'Tambah berulang', 'add', 'pri')) +
+    const berikut = (b) => H.berulangBerikut(b, b.mulai > depan ? b.mulai : depan, S.data);
+    const tahunan = list.filter(b => H.frekBerulang(b) !== 'Bulanan' && b.aktif).map(b => [b, berikut(b)]).filter(x => x[1]).sort((a, z) => a[1] < z[1] ? -1 : 1);
+    const adaThr = list.some(b => H.frekBerulang(b) === 'Idul Fitri'), adaG13 = list.some(b => H.frekBerulang(b) === 'Tahunan' && /gaji\s*(ke-?)?13/i.test(b.ket || ''));
+    const lebaran = H.tanggalIdulFitri(S.data).filter(t => t >= m.t).slice(0, 4);
+    return pageH('Proyeksi otomatis', 'Transaksi berulang', 'Gaji, sewa, langganan, THR, dan Gaji 13. Hanya dipakai proyeksi, mulai bulan berikutnya. Saldo kas tidak berubah sampai Anda mencatat transaksinya.',
+      (adaThr ? '' : btn('berulang-isi', 'THR', 'redeem', '', 'data-v="thr"')) + (adaG13 ? '' : btn('berulang-isi', 'Gaji 13', 'payments', '', 'data-v="g13"')) + btn('berulang-baru', 'Tambah berulang', 'add', 'pri')) +
       `<div class="note mb12">${ic('rule')}<div>Bila di bulan itu sudah ada transaksi tercatat dengan <b>jenis, kategori, dan nominal yang sama</b>, butir berulang dilewati agar tidak terhitung dua kali.</div></div>
       <div class="grid g3">
         ${metric('Pemasukan rutin / bulan', `<span class="plus">${uang(tIn)}</span>`, aktif.filter(b => b.jenis === 'Pemasukan').length + ' sumber aktif', 'south_west', 'var(--green-d)')}
         ${metric('Pengeluaran rutin / bulan', `<span class="minus">${uang(tOut)}</span>`, aktif.filter(b => b.jenis === 'Pengeluaran').length + ' pos aktif', 'north_east', 'var(--red-d)')}
         ${metric('Selisih rutin / bulan', `<span class="${tIn - tOut >= 0 ? 'plus' : 'minus'}">${uang(tIn - tOut)}</span>`, 'Berlaku untuk ' + KB.bulan(depan), 'balance')}
       </div>
+      ${tahunan.length ? `<div class="card mt16 thn"><div class="card-h">${ic('event_repeat', 's18')}<h2>Sekali setahun berikutnya</h2><span class="sp"></span><small class="muted">Tidak masuk total per bulan, masuk proyeksi di bulan kejadiannya</small></div><div class="list">${tahunan.map(x => {
+        const b = x[0], masuk = b.jenis === 'Pemasukan';
+        return `<div class="trow">${ikonKat(katMeta(b.jenis, b.kat))}<div class="t"><b>${esc(b.ket || b.kat)}</b><small>${esc(jadwalBerulang(b))} · ${esc(KB.tglPanjang(x[1]))}</small></div><div class="n ${masuk ? 'plus' : 'minus'}">${uang(b.nom, '', masuk ? '+' : '-')}<small>${esc(KB.bulan(H.bk(x[1])))}</small></div></div>`;
+      }).join('')}</div></div>` : ''}
       <div class="card mt16"><div class="list">${list.length ? list.map(b => {
-        const meta = katMeta(b.jenis, b.kat), on = H.berulangAktif(b, depan) || (b.aktif && b.mulai > depan);
+        const meta = katMeta(b.jenis, b.kat), on = H.berulangHidup(b, depan) || (b.aktif && b.mulai > depan), f = H.frekBerulang(b);
         return `<div class="trow ${b._p ? 'pending' : ''}" style="${on ? '' : 'opacity:.6'}">${ikonKat(meta)}
-          <div class="t"><b>${esc(b.ket || b.kat)}</b><small>${esc(b.kat)} · tiap tgl ${b.hari} · mulai ${esc(KB.bulanPendek(b.mulai))}${b.selesai ? ' s.d. ' + esc(KB.bulanPendek(b.selesai)) : ''}${pend(b)}</small></div>
-          <div class="n ${b.jenis === 'Pemasukan' ? 'plus' : 'minus'}">${uang(b.nom, '', b.jenis === 'Pemasukan' ? '+' : '-')}<small>per bulan</small></div>
+          <div class="t"><b>${esc(b.ket || b.kat)}</b><small>${esc(b.kat)} · ${esc(jadwalBerulang(b))} · mulai ${esc(KB.bulanPendek(b.mulai))}${b.selesai ? ' s.d. ' + esc(KB.bulanPendek(b.selesai)) : ''}${pend(b)}</small></div>
+          <div class="n ${b.jenis === 'Pemasukan' ? 'plus' : 'minus'}">${uang(b.nom, '', b.jenis === 'Pemasukan' ? '+' : '-')}<small>${f === 'Bulanan' ? 'per bulan' : f === 'Tahunan' ? 'per tahun' : 'per Idul Fitri'}</small></div>
           <label class="switch" title="Aktif"><input type="checkbox" data-act="berulang-aktif" data-id="${esc(b.id)}" ${b.aktif ? 'checked' : ''} aria-label="Aktif"><span></span></label>
           <div class="aksi">${btn('ubah-berulang', '', 'edit', 'ghost ico sm', `data-id="${esc(b.id)}" aria-label="Ubah"`)}${btn('hapus', '', 'delete', 'danger ico sm', `data-tabel="berulang" data-id="${esc(b.id)}" aria-label="Hapus"`)}</div></div>`;
-      }).join('') : kosong('event_repeat', 'Belum ada transaksi berulang', 'Tambahkan gaji atau sewa agar proyeksi bulan depan berarti.', btn('berulang-baru', 'Tambah berulang', 'add', 'pri mt8'))}</div></div>`;
+      }).join('') : kosong('event_repeat', 'Belum ada transaksi berulang', 'Tambahkan gaji atau sewa agar proyeksi bulan depan berarti.', btn('berulang-baru', 'Tambah berulang', 'add', 'pri mt8'))}</div></div>
+      ${adaThr ? `<div class="card mt16"><div class="card-h">${ic('event', 's18')}<h2>Tanggal Idul Fitri yang dipakai</h2></div>
+        <div class="list">${lebaran.map(t => { const sb = sumberIdulFitri(t); return `<div class="trow"><div class="t"><b>${esc(KB.tglPanjang(t))}</b></div><span class="pill ${sb[1]}">${esc(sb[0])}</span></div>`; }).join('')}</div>
+        <form class="card-b stack" data-form="idulfitri" style="gap:10px;border-top:1px solid var(--border)">
+          <p class="sub">Tanggal resmi ditetapkan pemerintah lewat sidang isbat dan bisa berbeda satu hari dari perkiraan. Isi koreksi bila sudah ada pengumuman; tahun yang diisi menggantikan perkiraan tahun itu.</p>
+          <div class="field"><label for="f-idf">Koreksi tanggal <small>format 2028-02-27, pisahkan dengan koma</small></label><input id="f-idf" class="inp" name="idul_fitri" value="${esc(UI.idf !== undefined ? UI.idf : S.data.set.idul_fitri || '')}" placeholder="Kosongkan untuk memakai perkiraan" autocomplete="off"></div>
+          <div class="row"><button class="btn pri sm">Simpan tanggal</button></div></form></div>` : ''}`;
   };
 
   /* ---------- Pengingat ---------- */
@@ -1044,19 +1078,22 @@
   }
 
   /* ---------- Form berulang ---------- */
-  function formBerulang(rec) {
-    const baru = !rec, id = rec ? rec.id : uid('RC'), jenis = rec ? rec.jenis : 'Pengeluaran', kini = H.bk(KB.hariIni());
+  function formBerulang(rec, isi) {
+    const baru = !rec, id = rec ? rec.id : uid('RC'), v = rec || isi || {}, jenis = v.jenis || 'Pengeluaran', kini = H.bk(KB.hariIni()), frek = H.frekBerulang(v);
     bukaDrawer(`<form data-form="berulang" data-live="berulang" data-id="${esc(id)}" data-baru="${baru ? 1 : 0}" style="display:contents" novalidate>
       ${kepala(baru ? 'Tambah transaksi berulang' : 'Ubah transaksi berulang', `<span class="idk">ID ${esc(id)}</span>`)}
       <div class="db">
         <div class="note">${ic('info')}<div>Hanya dipakai proyeksi, mulai bulan berikutnya, dan tidak mengubah saldo kas. Dilewati bila bulan itu sudah ada transaksi tercatat yang sama.</div></div>
         <div class="field"><span class="flabel">Jenis</span><div class="seg blk jenis">${['Pengeluaran', 'Pemasukan'].map(j => `<button type="button" class="${j === jenis ? 'on' : ''}" data-act="set-jenis" data-v="${j}">${ic(j === 'Pemasukan' ? 'south_west' : 'north_east', 's18')}${j} rutin</button>`).join('')}</div><input type="hidden" name="jenis" value="${jenis}"></div>
-        ${fieldUang('nom', rec && rec.nom, 'Nominal per bulan', baru)}
-        <div class="field"><span class="flabel">Kategori</span><div data-kat-wadah>${opsiKategori(jenis, rec ? rec.kat : '')}</div></div>
-        <div class="field"><label for="f-ket">Keterangan</label><input id="f-ket" class="inp" name="ket" maxlength="300" value="${esc(rec ? rec.ket : '')}" placeholder="Contoh: Sewa kos" autocomplete="off"></div>
-        <div class="f2"><div class="field"><label for="f-hari">Tanggal tiap bulan</label><select id="f-hari" class="inp" name="hari">${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${(rec ? rec.hari : 1) === i + 1 ? 'selected' : ''}>Tanggal ${i + 1}${i + 1 > 28 ? ' (dijepit)' : ''}</option>`).join('')}</select></div>
-          <div class="field"><label for="f-mulai">Mulai bulan</label><input id="f-mulai" class="inp" type="month" name="mulai" value="${rec ? rec.mulai : kini}" required></div></div>
-        <div class="field"><label for="f-selesai">Selesai bulan <small>kosongkan bila tanpa batas</small></label><input id="f-selesai" class="inp" type="month" name="selesai" value="${rec ? rec.selesai || '' : ''}"></div>
+        <div class="field"><span class="flabel">Frekuensi</span><div class="seg blk frek">${H.FREK.map(x => `<button type="button" class="${x === frek ? 'on' : ''}" data-act="set-frek" data-v="${x}">${x === 'Bulanan' ? 'Tiap bulan' : x === 'Tahunan' ? 'Sekali setahun' : 'Idul Fitri'}</button>`).join('')}</div><input type="hidden" name="frek" value="${frek}"></div>
+        ${fieldUang('nom', v.nom, 'Nominal per bulan', baru)}
+        <div class="field"><span class="flabel">Kategori</span><div data-kat-wadah>${opsiKategori(jenis, v.kat || '')}</div></div>
+        <div class="field"><label for="f-ket">Keterangan</label><input id="f-ket" class="inp" name="ket" maxlength="300" value="${esc(v.ket || '')}" placeholder="Contoh: Sewa kos" autocomplete="off"></div>
+        <div class="f2"><div class="field" data-frek="Tahunan"><label for="f-bln">Bulan</label><select id="f-bln" class="inp" name="bln">${KB.BULAN.map((b, i) => `<option value="${i + 1}" ${(Number(v.bln) || 6) === i + 1 ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
+          <div class="field" data-frek="Bulanan,Tahunan"><label for="f-hari" data-lbl-hari>Tanggal tiap bulan</label><select id="f-hari" class="inp" name="hari">${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${(Number(v.hari) || 1) === i + 1 ? 'selected' : ''}>Tanggal ${i + 1}${i + 1 > 28 ? ' (dijepit)' : ''}</option>`).join('')}</select></div>
+          <div class="field" data-frek="Idul Fitri"><label for="f-sebelum">Diterima</label><select id="f-sebelum" class="inp" name="sebelum">${Array.from({ length: 31 }, (_, i) => `<option value="${i}" ${(Number(v.sebelum) || 0) === i ? 'selected' : ''}>${i ? 'H-' + i + ' sebelum Lebaran' : 'Tepat hari raya'}</option>`).join('')}</select></div></div>
+        <div class="f2"><div class="field"><label for="f-mulai">Mulai bulan</label><input id="f-mulai" class="inp" type="month" name="mulai" value="${v.mulai || kini}" required></div>
+          <div class="field"><label for="f-selesai">Selesai bulan</label><input id="f-selesai" class="inp" type="month" name="selesai" value="${v.selesai || ''}"><span class="hint">Kosongkan bila tanpa batas.</span></div></div>
         <label class="row"><span class="switch"><input type="checkbox" name="aktif" ${!rec || rec.aktif ? 'checked' : ''}><span></span></span><span>Aktif</span></label>
         <div class="sim" data-sim></div>
         <p class="err" data-err hidden></p>
@@ -1064,13 +1101,26 @@
     LIVE.berulang($('form[data-form="berulang"]'));
   }
   LIVE.berulang = function (f) {
-    const nom = angkaDari(f.nom.value), masuk = f.jenis.value === 'Pemasukan', mulai = f.mulai.value || H.bk(KB.hariIni());
+    const nom = angkaDari(f.nom.value), masuk = f.jenis.value === 'Pemasukan', mulai = f.mulai.value || H.bk(KB.hariIni()), frek = f.frek.value, tanda = masuk ? '+' : '-';
     const efektif = H.geserBulan(H.bk(KB.hariIni()), 1) > mulai ? H.geserBulan(H.bk(KB.hariIni()), 1) : mulai;
-    f.querySelector('[data-sim]').innerHTML = `<div class="row">${ic('query_stats', 's18')}<b>Dampak ke proyeksi</b></div><div class="r2"><div class="bx"><span class="lbl">Per bulan</span><b class="${masuk ? 'plus' : 'minus'}">${masuk ? '+' : '-'}${KB.rp(nom)}</b></div><div class="bx"><span class="lbl">12 bulan</span><b class="${masuk ? 'plus' : 'minus'}">${masuk ? '+' : '-'}${KB.rp(nom * 12)}</b></div></div><span class="hint">Mulai dihitung ${esc(KB.bulan(efektif))}.</span>`;
+    $$('[data-frek]', f).forEach(el => { el.hidden = el.dataset.frek.split(',').indexOf(frek) < 0; });
+    f.querySelector('label[for="f-nom"]').textContent = frek === 'Bulanan' ? 'Nominal per bulan' : frek === 'Tahunan' ? 'Nominal per tahun' : 'Nominal tiap Idul Fitri';
+    f.querySelector('[data-lbl-hari]').textContent = frek === 'Tahunan' ? 'Tanggal' : 'Tanggal tiap bulan';
+    if (frek === 'Bulanan') {
+      f.querySelector('[data-sim]').innerHTML = `<div class="row">${ic('query_stats', 's18')}<b>Dampak ke proyeksi</b></div><div class="r2"><div class="bx"><span class="lbl">Per bulan</span><b class="${masuk ? 'plus' : 'minus'}">${tanda}${KB.rp(nom)}</b></div><div class="bx"><span class="lbl">12 bulan</span><b class="${masuk ? 'plus' : 'minus'}">${tanda}${KB.rp(nom * 12)}</b></div></div><span class="hint">Mulai dihitung ${esc(KB.bulan(efektif))}.</span>`;
+      return;
+    }
+    const b = { frek, hari: Number(f.hari.value), bln: Number(f.bln.value), sebelum: Number(f.sebelum.value), mulai: efektif, selesai: f.selesai.value || '' };
+    const t = H.berulangBerikut(b, efektif, S.data), raya = t && frek === 'Idul Fitri' ? H.tambahHari(t, b.sebelum) : '';
+    const sb = raya ? sumberIdulFitri(raya) : null;
+    f.querySelector('[data-sim]').innerHTML = `<div class="row">${ic('query_stats', 's18')}<b>Dampak ke proyeksi</b></div><div class="r2"><div class="bx"><span class="lbl">Sekali setahun</span><b class="${masuk ? 'plus' : 'minus'}">${tanda}${KB.rp(nom)}</b></div><div class="bx"><span class="lbl">Berikutnya</span><b>${t ? esc(KB.tgl(t)) : '—'}</b></div></div>` +
+      `<span class="hint">${t ? 'Masuk proyeksi ' + esc(KB.bulan(H.bk(t))) + '.' : 'Tidak ada kejadian dalam rentang mulai–selesai.'}${raya ? ' Idul Fitri ' + esc(KB.tglPanjang(raya)) + ' (' + esc(sb[0]) + ').' : ''}</span>`;
   };
   FORM.berulang = function (f) {
     const baru = f.dataset.baru === '1';
-    const rec = { id: f.dataset.id, jenis: f.jenis.value, kat: ambilKat(f), ket: f.ket.value.trim(), nom: angkaDari(f.nom.value), hari: Number(f.hari.value), mulai: f.mulai.value, selesai: f.selesai.value || '', aktif: f.aktif.checked };
+    const frek = f.frek.value;
+    const rec = { id: f.dataset.id, jenis: f.jenis.value, kat: ambilKat(f), ket: f.ket.value.trim(), nom: angkaDari(f.nom.value), hari: Number(f.hari.value), mulai: f.mulai.value, selesai: f.selesai.value || '', aktif: f.aktif.checked,
+      frek, bln: frek === 'Tahunan' ? Number(f.bln.value) : 0, sebelum: frek === 'Idul Fitri' ? Number(f.sebelum.value) : 0 };
     if (!(rec.nom > 0)) return errForm(f, 'Isi nominal.');
     if (!rec.kat) return errForm(f, 'Pilih kategori.');
     if (!H.bulanValid(rec.mulai)) return errForm(f, 'Bulan mulai tidak valid.');
@@ -1078,6 +1128,15 @@
     pastikanKategori(rec.jenis, rec.kat);
     antre({ act: 'simpan', tabel: 'berulang', rec, baru, cid: baru ? rec.id : uid('OP') });
     tutupDrawer(); KB.toast('Transaksi berulang disimpan.');
+  };
+  FORM.idulfitri = function (f) {
+    const daftar = f.idul_fitri.value.split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
+    const salah = daftar.find(x => !H.tglValid(x));
+    if (salah) return KB.toast('Tanggal "' + salah + '" tidak valid. Pakai format 2028-02-27.', 'bad');
+    const nilai = daftar.filter((x, i) => daftar.indexOf(x) === i).sort().join(',');
+    delete UI.idf;
+    if (nilai !== (S.data.set.idul_fitri || '')) antre({ act: 'set', kunci: 'idul_fitri', nilai });
+    KB.toast(nilai ? 'Koreksi tanggal Idul Fitri disimpan.' : 'Memakai tanggal perkiraan bawaan.');
   };
 
   /* ---------- Keinginan & hajatan (dana konseptual, terpisah dari kas) ---------- */
@@ -1272,6 +1331,7 @@
     bayar: (el) => formBayar(el.dataset.pid),
     'bayar-pilih': () => pilihPinjaman(),
     'berulang-baru': () => formBerulang(),
+    'berulang-isi': (el) => formBerulang(null, ISI_BERULANG[el.dataset.v]),
     'ubah-berulang': (el) => { const x = cari(S.data.berulang, el.dataset.id); if (x) formBerulang(x); },
     'berulang-aktif': (el) => { const x = cari(S.data.berulang, el.dataset.id); if (x) antre({ act: 'simpan', tabel: 'berulang', baru: false, rec: Object.assign({}, x, { aktif: el.checked }) }); },
     'kg-baru': (el) => formKeinginan(null, el.dataset.prio),
@@ -1320,6 +1380,11 @@
     'pilih-ikon': (el) => { const f = el.closest('form'); $$('[data-act="pilih-ikon"]', f).forEach(c => c.classList.toggle('on', c === el)); f.ikon.value = el.dataset.v; },
     'pilih-warna': (el) => { const f = el.closest('form'); $$('[data-act="pilih-warna"]', f).forEach(c => c.classList.toggle('on', c === el)); f.warna.value = el.dataset.v; },
     'set-jangka': (el) => { const f = el.closest('form'); f.jangka.value = el.dataset.v; LIVE.pinjaman(f); },
+    'set-frek': (el) => {
+      const f = el.closest('form'); f.frek.value = el.dataset.v;
+      $$('[data-act="set-frek"]', f).forEach(c => c.classList.toggle('on', c === el));
+      LIVE.berulang(f);
+    },
     'set-jenis': (el) => {
       const f = el.closest('form'); f.jenis.value = el.dataset.v;
       $$('[data-act="set-jenis"]', f).forEach(c => c.classList.toggle('on', c === el));
@@ -1432,6 +1497,7 @@
     if (el.dataset.filter && el.type === 'search') { clearTimeout(_cariT); _cariT = setTimeout(() => aturFilter(el), 140); }
     // Isian alamat migrasi tidak hilang bila halaman Pengaturan digambar ulang (mis. daftar cadangan selesai dimuat).
     if (el.name === 'sumber' && el.closest('form[data-form="migrasi"]') && UI.set) UI.set.mig.sumber = el.value;
+    if (el.name === 'idul_fitri' && el.closest('form[data-form="idulfitri"]')) UI.idf = el.value;   // sama: koreksi Idul Fitri
     const f = el.closest('form[data-live]'); if (f && LIVE[f.dataset.live]) LIVE[f.dataset.live](f);
     const err = el.closest('form') && el.closest('form').querySelector('[data-err]'); if (err) err.hidden = true;
   });
