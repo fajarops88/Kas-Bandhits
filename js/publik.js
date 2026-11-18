@@ -1,7 +1,7 @@
 /* =====================================================================
  * KAS BANDHITS — Halaman publik (hanya baca, tanpa login)
  * Bagian: saldo kas, pemasukan & pengeluaran bulan berjalan, kategori pemasukan & pengeluaran terbesar,
- * pengingat jatuh tempo per minggu (tiap minggu bisa dibuka/tutup), proyeksi 5 bulan,
+ * pengingat jatuh tempo per minggu (tiap minggu bisa dibuka/tutup), proyeksi 12 bulan,
  * keinginan & hajatan, 5 transaksi terbaru. Bagian yang disembunyikan pemilik
  * dikirim server sebagai null dan dilewati. Kartu utama berkilau terus dan membesar saat disorot;
  * cicilan yang mendekati jatuh tempo (≤ 7 hari) berdenyut sampai dibayar.
@@ -121,7 +121,7 @@
     }
     html += '<div class="minggu">' + kartu + '</div></section>';
     }
-    // 5. Proyeksi (5 bulan; jumlah baris mengikuti data dari server)
+    // 5. Proyeksi (12 bulan; jumlah baris mengikuti data dari server)
     var nPr = s.proyeksi ? s.proyeksi.length : 0;
     if (nPr) html += '<section><div class="sec-h"><div class="t"><h2>Proyeksi ' + nPr + ' bulan</h2><p>Bulan berjalan dan ' + (nPr - 1) + ' bulan berikutnya</p></div></div>' +
       '<div class="card"><div class="tbl-w"><table class="tbl"><thead><tr><th>Bulan</th><th class="r">Saldo awal</th><th class="r">Pemasukan</th><th class="r">Pengeluaran</th><th class="r">Cicilan</th><th class="r">Saldo akhir</th></tr></thead><tbody>' +

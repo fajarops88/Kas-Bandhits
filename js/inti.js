@@ -11,7 +11,7 @@
   var HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
   var KB = window.KB = {
-    VERSI: '2.11.0',   // naikkan setiap ada perubahan frontend (lihat CATATAN-VERSI.md)
+    VERSI: '2.12.0',   // naikkan setiap ada perubahan frontend (lihat CATATAN-VERSI.md)
     // Backend minimal yang memahami data yang dikirim frontend ini (frekuensi berulang & koreksi Idul Fitri sejak 2.10.0).
     // Bila backend lebih lama, penyimpanan ditahan di perangkat (tidak dikirim) sampai backend diperbarui.
     BACKEND_MIN: '2.10.0',

@@ -364,7 +364,7 @@ var Hitung = (function () {
         // Cicilan bulan depan yang jatuh tempo ≤ 7 hari lagi (menjelang akhir bulan), belum lunas
         bulanDepan: pg.tujuhHari.filter(function (it) { return bk(it.tgl) > kini && it.hariLagi >= 0; }).map(bersih)
       },
-      proyeksi: tampil('proyeksi') ? proyeksi(data, hariIni, 5).map(function (r) {
+      proyeksi: tampil('proyeksi') ? proyeksi(data, hariIni, 12).map(function (r) {
         return { bulan: r.bulan, berjalan: r.berjalan, saldoAwal: r.saldoAwal, pemasukan: r.pemasukan, pengeluaran: r.pengeluaran, cicilan: r.cicilan, saldoAkhir: r.saldoAkhir };
       }) : null,
       terbaru: tampil('terbaru') ? terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; }) : null,
@@ -418,7 +418,7 @@ var Hitung = (function () {
 
   return {
     // Versi isi modul ini. Kode.gs menolak penulisan bila Hitung.gs lebih lama dari HITUNG_MIN (berkas tertinggal saat update).
-    VERSI: '2.11.0',
+    VERSI: '2.12.0',
     keinginanPublik: keinginanPublik, katTerbesar: katTerbesar,
     pad: pad, num: num, tglValid: tglValid, bulanValid: bulanValid, bk: bk, geserBulan: geserBulan,
     tambahBulan: tambahBulan, tambahHari: tambahHari, selisihHari: selisihHari, hariAkhir: hariAkhir, idWaktu: idWaktu,

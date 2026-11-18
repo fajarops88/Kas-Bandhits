@@ -513,7 +513,7 @@
     ['kat_masuk', 'Pemasukan terbesar bulan ini', 'pie_chart', '5 kategori pemasukan teratas beserta nominalnya'],
     ['kat_keluar', 'Pengeluaran terbesar bulan ini', 'donut_large', '5 kategori pengeluaran teratas beserta nominalnya'],
     ['tempo', 'Pengingat jatuh tempo', 'notifications_active', 'Per minggu, awal bulan depan, dan tunggakan · memuat nama pemberi pinjaman'],
-    ['proyeksi', 'Proyeksi 5 bulan', 'query_stats', 'Saldo awal, pemasukan, pengeluaran, dan saldo akhir tiap bulan'],
+    ['proyeksi', 'Proyeksi 12 bulan', 'query_stats', 'Saldo awal, pemasukan, pengeluaran, dan saldo akhir tiap bulan'],
     ['keinginan', 'Keinginan & hajatan', 'volunteer_activism', 'Hanya butir yang diizinkan tampil di menu Keinginan'],
     ['terbaru', 'Transaksi terbaru', 'receipt_long', '5 catatan terakhir beserta keterangannya']];
   const pubSembunyi = () => String((S.data.set && S.data.set.publik_sembunyi) || '').split(',').filter(Boolean);
