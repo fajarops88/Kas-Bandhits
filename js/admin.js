@@ -480,6 +480,8 @@
      disembunyikan tidak terkirim ke pengunjung. Keinginan memakai saklar lamanya sendiri (publik_keinginan). */
   const PUB = [['saldo', 'Saldo kas', 'account_balance_wallet', 'Kartu saldo utama di paling atas'],
     ['kpi', 'Pemasukan & pengeluaran bulan ini', 'swap_vert', 'Dua kartu total bulan berjalan'],
+    ['kat_masuk', 'Pemasukan terbesar bulan ini', 'pie_chart', '5 kategori pemasukan teratas beserta nominalnya'],
+    ['kat_keluar', 'Pengeluaran terbesar bulan ini', 'donut_large', '5 kategori pengeluaran teratas beserta nominalnya'],
     ['tempo', 'Pengingat jatuh tempo', 'notifications_active', 'Per minggu, awal bulan depan, dan tunggakan · memuat nama pemberi pinjaman'],
     ['proyeksi', 'Proyeksi 5 bulan', 'query_stats', 'Saldo awal, pemasukan, pengeluaran, dan saldo akhir tiap bulan'],
     ['keinginan', 'Keinginan & hajatan', 'volunteer_activism', 'Hanya butir yang diizinkan tampil di menu Keinginan'],
@@ -488,9 +490,11 @@
   const pubTampil = (k) => k === 'keinginan' ? S.data.set.publik_keinginan !== 'off' : pubSembunyi().indexOf(k) < 0;
   function htmlPubAtur() {
     const bocor = !pubTampil('saldo') && pubTampil('proyeksi');
+    const bocorKpi = !pubTampil('kpi') && (pubTampil('kat_masuk') || pubTampil('kat_keluar'));
     return PUB.map(d => `<div class="set-row menu-row ${pubTampil(d[0]) ? '' : 'mati'}"><div class="t"><b>${ic(d[2], 's18')}${d[1]}</b><small>${d[3]}${pubTampil(d[0]) ? '' : ' · disembunyikan'}</small></div>
       <label class="switch"><input type="checkbox" data-act="pub-tampil" data-k="${d[0]}" ${pubTampil(d[0]) ? 'checked' : ''} aria-label="Tampilkan ${d[1]} di halaman publik"><span></span></label></div>`).join('') +
-      (bocor ? `<div class="card-b"><div class="note warn">${ic('warning')}<div>Saldo kas disembunyikan, tetapi <b>Proyeksi</b> masih menampilkan saldo awal dan saldo akhir tiap bulan, jadi saldo tetap bisa diperkirakan. Sembunyikan Proyeksi juga bila perlu.</div></div></div>` : '');
+      (bocor ? `<div class="card-b"><div class="note warn">${ic('warning')}<div>Saldo kas disembunyikan, tetapi <b>Proyeksi</b> masih menampilkan saldo awal dan saldo akhir tiap bulan, jadi saldo tetap bisa diperkirakan. Sembunyikan Proyeksi juga bila perlu.</div></div></div>` : '') +
+      (bocorKpi ? `<div class="card-b"><div class="note warn">${ic('warning')}<div>Pemasukan &amp; pengeluaran disembunyikan, tetapi kartu <b>kategori terbesar</b> masih menampilkan nominal per kategori, jadi totalnya bisa diperkirakan.</div></div></div>` : '');
   }
   VIEW.dashboard = function () {
     const m = M(), b = m.bulan, p0 = m.proy[0], lalu = H.totalBulan(S.data, H.geserBulan(m.kini, -1));

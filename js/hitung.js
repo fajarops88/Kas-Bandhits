@@ -332,8 +332,33 @@ var Hitung = (function () {
         return { bulan: r.bulan, berjalan: r.berjalan, saldoAwal: r.saldoAwal, pemasukan: r.pemasukan, pengeluaran: r.pengeluaran, cicilan: r.cicilan, saldoAkhir: r.saldoAkhir };
       }) : null,
       terbaru: tampil('terbaru') ? terbaru(data, hariIni, 5).map(function (x) { return { tgl: x.tgl, jenis: x.jenis, kat: x.kat, ket: x.ket, nom: x.nom }; }) : null,
+      katMasuk: tampil('kat_masuk') ? katTerbesar(data, 'Pemasukan', kini, hariIni, 5) : null,
+      katKeluar: tampil('kat_keluar') ? katTerbesar(data, 'Pengeluaran', kini, hariIni, 5) : null,
       keinginan: keinginanPublik(data)
     };
+  }
+
+  /** Kategori terbesar bulan `key` s.d. `sampai` (pemasukan atau pengeluaran tercatat; pembayaran cicilan tidak termasuk,
+   *  sama seperti Dashboard admin). persen = bagian dari total bulan itu, dibulatkan; total sendiri tidak dikirim.
+   *  Ikon & warna diambil dari tabel Kategori dan disaring supaya aman disisipkan ke HTML. */
+  function katTerbesar(data, tipe, key, sampai, n) {
+    var arr = (tipe === 'Pemasukan' ? data.pemasukan : data.pengeluaran) || [], per = {}, nama = {}, tot = 0;
+    arr.forEach(function (x) {
+      if (bk(x.tgl) !== key || (sampai && x.tgl > sampai)) return;
+      var v = num(x.nom), k = String(x.kat || 'Lainnya').trim(), kk = k.toLowerCase();
+      if (!v) return;
+      per[kk] = (per[kk] || 0) + v; if (!nama[kk]) nama[kk] = k; tot += v;
+    });
+    var meta = {};
+    (data.kategori || []).forEach(function (k) { if (k.tipe === tipe) meta[String(k.nama || '').trim().toLowerCase()] = k; });
+    return Object.keys(per).sort(function (a, b) { return per[b] - per[a] || (a > b ? 1 : -1); }).slice(0, n || 5).map(function (kk) {
+      var m = meta[kk] || {}, cicil = /^cicilan\b/.test(kk);
+      return {
+        nama: m.nama ? String(m.nama).trim() : nama[kk], nominal: per[kk], persen: tot ? Math.round(per[kk] / tot * 100) : 0,
+        ikon: /^[a-z0-9_]{2,40}$/.test(String(m.ikon || '')) ? m.ikon : cicil ? 'account_balance' : tipe === 'Pemasukan' ? 'south_west' : 'north_east',
+        warna: /^#[0-9a-fA-F]{6}$/.test(String(m.warna || '')) ? m.warna : cicil ? '#0E9594' : '#667085'
+      };
+    });
   }
 
   /** Keinginan & hajatan untuk halaman publik (hanya baca): aktif per prioritas sesuai urutan, plus 5 yang terakhir tercapai.
@@ -356,7 +381,7 @@ var Hitung = (function () {
   }
 
   return {
-    keinginanPublik: keinginanPublik,
+    keinginanPublik: keinginanPublik, katTerbesar: katTerbesar,
     pad: pad, num: num, tglValid: tglValid, bulanValid: bulanValid, bk: bk, geserBulan: geserBulan,
     tambahBulan: tambahBulan, tambahHari: tambahHari, selisihHari: selisihHari, hariAkhir: hariAkhir, idWaktu: idWaktu,
     jadwalPinjaman: jadwalPinjaman, semuaPinjaman: semuaPinjaman, saldoKas: saldoKas, totalBulan: totalBulan,

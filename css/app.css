@@ -410,6 +410,8 @@ select.inp { appearance: none; -webkit-appearance: none; padding-right: 32px; ba
 .bar-r { display: grid; grid-template-columns: minmax(80px, 140px) 1fr auto; gap: 10px; align-items: center; font-size: 12.5px; }
 .bar-r .b { height: 8px; border-radius: 4px; background: var(--head); overflow: hidden; }
 .bar-r .b i { display: block; height: 100%; border-radius: 4px; }
+.kat-pub .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kat-pub .kosong { padding: 18px 8px; }
 .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 

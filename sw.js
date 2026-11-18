@@ -1,6 +1,6 @@
 /* Service worker Kas Bandhits — aset statis instan dari cache, data selalu dari server. */
-const VERSI = 'kb-d5c3d7bb13';
-const ASET = ["./", "./index.html", "./admin.html", "./manifest.json", "./manifest-admin.json", "./assets/logo.svg", "./assets/icon-192.png", "./assets/apple-touch-icon.png", "./css/app.css?v=b446ef5c", "./js/config.js?v=64ec8ffa", "./js/inti.js?v=ffbb9363", "./js/publik.js?v=79ffb03d", "./js/tema.js?v=dfef444d", "./js/hitung.js?v=d911e46a", "./js/admin.js?v=27470251"];
+const VERSI = 'kb-cf2fdcc9ed';
+const ASET = ["./", "./index.html", "./admin.html", "./manifest.json", "./manifest-admin.json", "./assets/logo.svg", "./assets/icon-192.png", "./assets/apple-touch-icon.png", "./css/app.css?v=1cde5fac", "./js/config.js?v=64ec8ffa", "./js/inti.js?v=f3dc90e8", "./js/publik.js?v=eef10ad0", "./js/tema.js?v=dfef444d", "./js/hitung.js?v=35852bdf", "./js/admin.js?v=d182002f"];
 const FONT = 'kb-font-v1';
 
 self.addEventListener('install', (e) => {

@@ -1,6 +1,6 @@
 /* =====================================================================
  * KAS BANDHITS — Halaman publik (hanya baca, tanpa login)
- * Bagian: saldo kas, pemasukan & pengeluaran bulan berjalan,
+ * Bagian: saldo kas, pemasukan & pengeluaran bulan berjalan, kategori pemasukan & pengeluaran terbesar,
  * pengingat jatuh tempo per minggu (tiap minggu bisa dibuka/tutup), proyeksi 5 bulan,
  * keinginan & hajatan, 5 transaksi terbaru. Bagian yang disembunyikan pemilik
  * dikirim server sebagai null dan dilewati. Kartu utama berkilau terus dan membesar saat disorot;
@@ -48,6 +48,21 @@
       '<div class="card metric kilau kilau-out"><div class="top"><span class="lbl">Pengeluaran ' + esc(KB.bulan(kini)) + '</span><span class="ibox" style="color:var(--red-d)">' + ic('north_east') + '</span></div>' +
       '<div class="v minus">' + uang(s.bulan.pengeluaran) + '</div><div class="foot">' + s.bulan.jmlPengeluaran + ' transaksi' +
       (s.bulan.cicilan ? ' · termasuk cicilan ' + uang(s.bulan.cicilan) : '') + '</div></div></section>';
+    // 3b. Kategori pemasukan & pengeluaran terbesar bulan ini (maks. 5; batang = bagian dari total bulan)
+    function kartuKat(daftar, judul, ikon, kosongTeks) {
+      return '<div class="card kat-pub"><div class="card-h">' + ic(ikon, 's18') + '<h2>' + judul + '</h2></div><div class="card-b">' +
+        (daftar.length ? '<div class="bars">' + daftar.map(function (k) {
+          return '<div class="bar-r"><span class="row" style="min-width:0"><span style="color:' + esc(k.warna) + '">' + ic(k.ikon, 's18') + '</span><span class="nm">' + esc(k.nama) + '</span></span>' +
+            '<span class="b" title="' + k.persen + '%"><i style="width:' + Math.max(2, Math.min(100, k.persen)) + '%;background:' + esc(k.warna) + '"></i></span>' + uang(k.nominal) + '</div>';
+        }).join('') + '</div>' : '<div class="kosong">' + ic('pie_chart') + '<b>' + kosongTeks + '</b></div>') + '</div></div>';
+    }
+    var katKartu = [];
+    if (s.katMasuk) katKartu.push(kartuKat(s.katMasuk, 'Pemasukan terbesar', 'pie_chart', 'Belum ada pemasukan bulan ini'));
+    if (s.katKeluar) katKartu.push(kartuKat(s.katKeluar, 'Pengeluaran terbesar', 'donut_large', 'Belum ada pengeluaran bulan ini'));
+    if (katKartu.length) {
+      html += '<section><div class="sec-h"><div class="t"><h2>Kategori terbesar ' + esc(KB.bulan(kini)) + '</h2><p>5 kategori teratas s.d. hari ini · pengeluaran di luar pembayaran cicilan</p></div></div>' +
+        (katKartu.length > 1 ? '<div class="grid g2">' + katKartu.join('') + '</div>' : katKartu[0]) + '</section>';
+    }
     // 4. Pengingat jatuh tempo — tiap minggu bisa dibuka/tutup sendiri
     var pg = s.pengingat;
     if (pg) {
